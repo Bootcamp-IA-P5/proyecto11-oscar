@@ -1,0 +1,29 @@
+# src/core/content_chains.py
+
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from src.models.llm_factory import get_llm_ollama
+from config.prompts import BLOG_GENERATION_TEMPLATE
+
+def create_blog_chain_ollama(model_name: str = "mistral"):
+    """
+    Creates a blog generation chain using an Ollama model.
+
+    Args:
+        model_name (str, optional): The name of the Ollama model to use. 
+                                    Defaults to "mistral".
+
+    Returns:
+        A chain of transformations for blog generation.
+    """
+    llm = get_llm_ollama(model_name)
+
+    prompt = ChatPromptTemplate.from_template(BLOG_GENERATION_TEMPLATE)
+
+    chain = (
+        prompt
+        | llm
+        | StrOutputParser()
+    )
+    
+    return chain

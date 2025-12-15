@@ -75,6 +75,12 @@ def log_setup():
                 'handlers': ['console'],
                 'level': 'WARNING',
                 'propagate': False,
+            },
+            # watchdog
+            'watchdog.observers.inotify_buffer': {
+                'handlers': ['file', 'console'],
+                'level': 'INFO',
+                'propagate': False,
             }
         }
     }
