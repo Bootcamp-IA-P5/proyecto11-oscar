@@ -7,7 +7,7 @@ from config.prompts import (
     IMAGE_PROMPT_GENERATION_TEMPLATE
 )
 
-def create_blog_chain_groq(model_name: str = "mistral"):
+def create_blog_chain_ollama(model_name: str = "mistral"):
     """
     Creates a blog generation chain using an Ollama model.
 
@@ -31,6 +31,12 @@ def create_blog_chain_groq(model_name: str = "mistral"):
     return chain
 
 def create_blog_chain_groq():
+    """
+    Creates a blog generation chain using a Groq model.
+
+    Returns:
+        A chain of transformations for blog generation.
+    """
     llm = get_llm_groq() 
     
     prompt = ChatPromptTemplate.from_template(BLOG_GENERATION_TEMPLATE)
@@ -44,6 +50,12 @@ def create_blog_chain_groq():
     return chain
 
 def create_twitter_adaptor_chain():
+    """
+    Creates a chain to adapt content for Twitter using a Groq model.
+
+    Returns:
+        A chain of transformations for adapting content to Twitter.
+    """
     llm = get_llm_groq()
     
     prompt = ChatPromptTemplate.from_template(TWITTER_ADAPTOR_TEMPLATE)
@@ -57,6 +69,12 @@ def create_twitter_adaptor_chain():
     return chain
 
 def create_image_prompt_chain():
+    """
+    Creates a chain to generate an image prompt using a Groq model.
+
+    Returns:
+        A chain of transformations for generating an image prompt.
+    """
     llm = get_llm_groq()
     
     prompt = ChatPromptTemplate.from_template(IMAGE_PROMPT_GENERATION_TEMPLATE)

@@ -1,3 +1,15 @@
+"""
+This module implements a Streamlit web application for generating creative content.
+
+The application allows users to generate blog articles, adapt them for Twitter,
+and create accompanying cover images based on a given topic and target audience.
+
+It utilizes language model chains for content generation and adaptation, and a
+separate model for image generation.
+
+To run the application:
+streamlit run app.py
+"""
 import streamlit as st
 from src.core.content_chains import create_blog_chain_groq, create_twitter_adaptor_chain, create_image_prompt_chain
 from src.models.image_generator import generate_image_from_prompt
