@@ -1,12 +1,12 @@
 import streamlit as st
-from src.core.content_chains import create_blog_chain_ollama
+from src.core.content_chains import create_blog_chain_groq
 
 st.set_page_config(page_title="Generador de Contenido PoC", layout="wide")
 st.title("✍️ Digital Content Generator (PoC)")
-st.caption("Generación de contenido de blog con modelos LLM locales (Ollama).")
+st.caption("Generación de contenido de blog con Groq y Ollama.")
 
 try:
-    blog_chain = create_blog_chain_ollama(model_name="mistral") # Asegúrate de que el modelo esté descargado en Ollama
+    blog_chain = create_blog_chain_groq()
 except Exception as e:
     st.error(f"No se pudo inicializar el LLM. Asegúrate de que Ollama esté corriendo y el modelo (ej: llama3:8b) esté descargado. Error: {e}")
     st.stop()
