@@ -1,36 +1,60 @@
 import streamlit as st
-from src.core.content_chains import create_blog_chain_groq
-
-st.set_page_config(page_title="Generador de Contenido PoC", layout="wide")
-st.title("✍️ Digital Content Generator (PoC)")
-st.caption("Generación de contenido de blog con Groq y Ollama.")
+from src.core.content_chains import create_blog_chain_groq, create_twitter_adaptor_chain, create_image_prompt_chain
+from src.models.image_generator import generate_image_from_prompt
 
 try:
     blog_chain = create_blog_chain_groq()
+    image_prompt_chain = create_image_prompt_chain()
+    twitter_adaptor_chain = create_twitter_adaptor_chain() 
 except Exception as e:
-    st.error(f"No se pudo inicializar el LLM. Asegúrate de que Ollama esté corriendo y el modelo (ej: llama3:8b) esté descargado. Error: {e}")
+    st.error(f"No se pudo inicializar un componente. Error: {e}")
     st.stop()
 
 
 with st.sidebar:
     st.header("Parámetros de Generación")
-    topic = st.text_input("Tema del Blog:", "El impacto de la IA generativa en el marketing digital")
-    audience = st.text_input("Audiencia Objetivo:", "Dueños de PYMES y especialistas en marketing")
+    topic = st.text_input("Tema del Contenido:", "El impacto de la IA en la creatividad")
+    audience = st.text_input("Audiencia Objetivo:", "Diseñadores gráficos y artistas digitales")
     
-    generate_button = st.button("Generar Contenido de Blog", type="primary")
+    generate_twitter = st.checkbox("Adaptar a Twitter/X", value=True) 
+    generate_image = st.checkbox("Generar Imagen de Portada", value=False)
+    
+    generate_button = st.button("Generar Todo el Contenido", type="primary")
 
-st.subheader("Contenido Generado (Plataforma: Blog)")
+st.subheader("Contenido Generado")
 
 if generate_button:
     if not topic or not audience:
         st.warning("Por favor, introduce el Tema y la Audiencia.")
     else:
-        with st.spinner("Generando contenido... esto puede tardar un momento con modelos locales."):
-            try:
-                inputs = {"topic": topic, "audience": audience}
-                result = blog_chain.invoke(inputs)
+        with st.spinner("Generando Artículo de Blog..."):
+            inputs = {"topic": topic, "audience": audience}
+            blog_content = blog_chain.invoke(inputs)
+            
+            st.markdown("### 📝 Artículo de Blog (Contenido Base)")
+            st.markdown(blog_content)
+        
+        st.divider()
+
+        if generate_twitter:
+            st.markdown("### 🐦 Adaptación para Twitter/X")
+            with st.spinner("Adaptando contenido a formato Twitter/X..."):
+                twitter_inputs = {"blog_content": blog_content}
+                twitter_content = twitter_adaptor_chain.invoke(twitter_inputs)
+                st.markdown(twitter_content)
+            st.divider()
+
+        if generate_image:
+            st.markdown("### 🖼️ Imagen de Portada")
+            
+            with st.spinner("1/2: Generando prompt de imagen..."):
+                image_prompt = image_prompt_chain.invoke(inputs)
+                st.info(f"**Prompt de Imagen Generado:** `{image_prompt}`")
+            
+            with st.spinner("2/2: Generando la imagen (Hugging Face API)..."):
+                generated_image = generate_image_from_prompt(image_prompt)
                 
-                st.markdown(result)
-                
-            except Exception as e:
-                st.error(f"Ocurrió un error durante la generación: {e}")
+                if generated_image:
+                    st.image(generated_image, caption=topic, width='stretch')
+                else:
+                    st.warning("No se pudo generar la imagen.")

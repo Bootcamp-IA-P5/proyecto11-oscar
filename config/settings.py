@@ -13,3 +13,6 @@ LOG_BASE_DIR = os.getenv("LOG_BASE_DIR", "log")
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_MODEL = os.getenv("GROQ_MODEL")
+
+HF_TOKEN = os.getenv("HF_TOKEN")
+HF_MODEL = os.getenv("HF_MODEL")
