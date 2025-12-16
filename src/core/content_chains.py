@@ -4,6 +4,8 @@ from src.models.llm_factory import get_llm_ollama, get_llm_groq
 from config.prompts import (
     BLOG_GENERATION_TEMPLATE,
     TWITTER_ADAPTOR_TEMPLATE,
+    INSTAGRAM_ADAPTOR_TEMPLATE,
+    LINKEDIN_ADAPTOR_TEMPLATE,
     IMAGE_PROMPT_GENERATION_TEMPLATE
 )
 
@@ -63,6 +65,32 @@ def create_twitter_adaptor_chain():
     chain = (
         prompt
         | llm
+        | StrOutputParser()
+    )
+    
+    return chain
+
+def create_instagram_adaptor_chain():
+    llm = get_llm_groq()
+    
+    prompt = ChatPromptTemplate.from_template(INSTAGRAM_ADAPTOR_TEMPLATE)
+    
+    chain = (
+        prompt
+        | llm
+        | StrOutputParser()
+    )
+    
+    return chain
+
+def create_linkedin_adaptor_chain():
+    llm = get_llm_groq()
+    
+    prompt = ChatPromptTemplate.from_template(LINKEDIN_ADAPTOR_TEMPLATE)
+
+    chain = (
+        prompt 
+        | llm 
         | StrOutputParser()
     )
     
