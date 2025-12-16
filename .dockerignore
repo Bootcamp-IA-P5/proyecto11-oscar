@@ -1,0 +1,20 @@
+# Dependencias Python
+.venv
+venv
+__pycache__
+*.pyc
+*.egg-info
+
+# Logs y Data (ChromaDB local, si se implementa más tarde)
+data/
+logs/
+
+# Entorno de Ollama/local
+ollama_models/
+
+# Archivos de entorno
+.env
+
+# Archivos de sistema y edición
+.DS_Store
+*.swp
