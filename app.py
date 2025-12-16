@@ -12,40 +12,70 @@ streamlit run app.py
 """
 import streamlit as st
 from src.core.content_chains import (
-    create_blog_chain_groq, create_twitter_adaptor_chain, create_image_prompt_chain,
-    create_instagram_adaptor_chain, create_linkedin_adaptor_chain
+    create_twitter_adaptor_chain, create_image_prompt_chain,
+    create_instagram_adaptor_chain, create_linkedin_adaptor_chain, create_blog_chain
 )
 from src.models.image_generator import generate_image_from_prompt
 
-try:
-    blog_chain = create_blog_chain_groq()
-    image_prompt_chain = create_image_prompt_chain()
-    twitter_adaptor_chain = create_twitter_adaptor_chain()
-    instagram_adaptor_chain = create_instagram_adaptor_chain()
-    linkedin_adaptor_chain = create_linkedin_adaptor_chain()
-except Exception as e:
-    st.error(f"No se pudo inicializar un componente. Error: {e}")
-    st.stop()
-
-
 with st.sidebar:
     st.header("Parámetros de Generación")
+    
+    st.subheader("🧠 Motor de Generación (LLM)")
+    
+    llm_options = ["Gemini (Nube, Prioritario)", "Groq (Nube, Rápido)", "Ollama (Local, Requiere setup)"]
+    
+    llm_selection_display = st.selectbox(
+        "Seleccionar Proveedor",
+        options=llm_options,
+        index=1,
+        help="Gemini: Versátil; Groq: Ultra-rápido; Ollama: Requiere servidor local Ollama."
+    )
+    
+    llm_selection = llm_selection_display.split('(')[0].strip()
+    
+    # Advertencia específica si selecciona Ollama
+    if llm_selection == "Ollama":
+        st.warning(
+            "⚠️ **ADVERTENCIA:** Ollama está seleccionado. Esta opción requiere que el servidor "
+            "de Ollama esté corriendo localmente en el puerto 11434 y que el modelo necesario "
+            "esté descargado. Si no está configurado, la aplicación fallará al generar."
+        )
+    
+    # llm_selection = st.selectbox(
+    #     "🧠 Modelo de Lenguaje (LLM)",
+    #     options=["Gemini", "Groq"],
+    #     index=1,
+    #     help="Gemini: Versátil, Groq: Ultra-rápido."
+    # )
+    st.divider()
+    
     topic = st.text_input("Tema del Contenido:", "El impacto de la IA en la creatividad")
     audience = st.text_input("Audiencia Objetivo:", "Diseñadores gráficos y artistas digitales")
     
-    generate_twitter = st.checkbox("Adaptar a Twitter/X", value=True)
+    generate_twitter = st.checkbox("Adaptar a Twitter/X", value=False)
     generate_instagram = st.checkbox("Adaptar a Instagram", value=False)
     generate_linkedin = st.checkbox("Adaptar a LinkedIn", value=False)
     generate_image = st.checkbox("Generar Imagen de Portada", value=False)
     
     generate_button = st.button("Generar Todo el Contenido", type="primary")
 
-st.subheader("Contenido Generado")
+st.subheader("Contenido Generado (PoC)")
 
 if generate_button:
     if not topic or not audience:
         st.warning("Por favor, introduce el Tema y la Audiencia.")
     else:
+        try:
+            st.info(f"Inicializando motor de contenido con: **{llm_selection}**...")
+            blog_chain = create_blog_chain(llm_selection)
+            image_prompt_chain = create_image_prompt_chain(llm_selection)
+            twitter_adaptor_chain = create_twitter_adaptor_chain(llm_selection)
+            instagram_adaptor_chain = create_instagram_adaptor_chain(llm_selection)
+            linkedin_adaptor_chain = create_linkedin_adaptor_chain(llm_selection)
+        except Exception as e:
+            st.error(f"No se pudo inicializar un componente. Error: {e}")
+            st.stop()
+        
         with st.spinner("Generando Artículo de Blog..."):
             inputs = {"topic": topic, "audience": audience}
             blog_content = blog_chain.invoke(inputs)
