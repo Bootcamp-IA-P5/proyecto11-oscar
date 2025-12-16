@@ -57,3 +57,43 @@ TWITTER_ADAPTOR_TEMPLATE = """
 
     Publicaciones para Twitter/X (SOLO el texto de los tweets):
 """
+
+INSTAGRAM_ADAPTOR_TEMPLATE = """
+    Eres un experto en captions de Instagram y marketing visual. Tu tarea es transformar el siguiente
+    ARTÍCULO DE BLOG en un caption largo y atractivo para Instagram, diseñado para acompañar
+    una imagen de alta calidad.
+
+    Instrucciones:
+    1. Genera un titular corto y llamativo al inicio (gancho).
+    2. Resume los puntos clave del blog en 3-5 párrafos cortos y fáciles de leer.
+    3. Usa emojis estratégicamente para mejorar la legibilidad.
+    4. Incluye un espacio y luego una lista de al menos 10 hashtags altamente relevantes y populares.
+    5. Usa saltos de línea para que el texto sea escaneable.
+
+    ARTÍCULO DE BLOG:
+    ---
+    {blog_content}
+    ---
+
+    Caption de Instagram (SOLO el texto del caption):
+"""
+
+LINKEDIN_ADAPTOR_TEMPLATE = """
+    Eres un especialista en contenido B2B y profesional. Tu tarea es transformar el siguiente
+    ARTÍCULO DE BLOG en una publicación de LinkedIn que impulse el engagement y demuestre
+    liderazgo intelectual.
+
+    Instrucciones:
+    1. El tono debe ser profesional, analítico y enfocado en el valor para la carrera/negocio.
+    2. Comienza con una pregunta o declaración impactante para detener el scroll.
+    3. Utiliza párrafos cortos o puntos clave (con bullets o números).
+    4. Termina con una llamada a la acción profesional (ej: "Déjame un comentario...", "Sígueme para más...").
+    5. Incluye 5 hashtags B2B o de la industria relevantes al final.
+
+    ARTÍCULO DE BLOG:
+    ---
+    {blog_content}
+    ---
+
+    Publicación de LinkedIn (SOLO el texto de la publicación):
+"""
