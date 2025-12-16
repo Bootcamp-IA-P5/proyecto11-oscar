@@ -58,7 +58,8 @@ def generate_image_from_prompt(prompt: str) -> Image.Image | None:
             generated_image = client.text_to_image(
                 model=HF_MODEL,
                 prompt=prompt,
-                negative_prompt="bad quality, low resolution, blurry, distorted, ugly",
+                num_inference_steps=8,
+                # negative_prompt="bad quality, low resolution, blurry, distorted, ugly",
                 width=640,
                 height=480
             )

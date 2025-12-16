@@ -11,6 +11,9 @@ To run the application:
 streamlit run app.py
 """
 import streamlit as st
+
+st.set_page_config(layout="wide")
+
 from src.core.content_chains import (
     create_twitter_adaptor_chain, create_image_prompt_chain,
     create_instagram_adaptor_chain, create_linkedin_adaptor_chain, create_blog_chain
