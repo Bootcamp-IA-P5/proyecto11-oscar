@@ -81,33 +81,6 @@ LINKEDIN_ADAPTOR_TEMPLATE = """
     LINKEDIN POST IN {target_language}: [/INST]
 """
 
-# IMAGE_PROMPT_GENERATION_TEMPLATE = """
-#     Eres un experto en prompt engineering para modelos de Stable Diffusion/SDXL.
-#     Tu tarea es transformar el siguiente TEMA y AUDIENCIA en un prompt de imagen visualmente rico,
-#     detallado y atractivo.
-    
-#     Incluye detalles sobre el estilo (ej: fotorrealismo, arte conceptual, 3D), la iluminación,
-#     la composición y los colores. El prompt debe ser en INGLÉS (crucial para SDXL). Solo tienes 
-#     que responder con el prompt en ingles y ABSOLUTAMENTE nada mas.
-
-#     TEMA: {topic}
-#     AUDIENCIA: {audience}
-    
-#     Prompt de Imagen (SOLO el texto del prompt):
-#     """
-    
-# IMAGE_PROMPT_GENERATION_TEMPLATE = """
-#     Eres un experto en prompt engineering para modelos de Stable Diffusion/SDXL.
-#     Tu tarea es transformar el siguiente TEMA en un prompt de imagen sencillo y visualmente atractivo.
-    
-#     El estilo debe de ser fotorealista. El prompt debe ser en INGLÉS (crucial para SDXL). Solo tienes 
-#     que responder con el prompt en ingles y ABSOLUTAMENTE nada mas.
-
-#     TEMA: {topic}
-    
-#     Prompt de Imagen (SOLO el texto del prompt):
-#     """
-
 IMAGE_PROMPT_GENERATION_TEMPLATE = """
     [INST] <<SYS>>
     You are a professional Prompt Engineer for AI image generation (Stable Diffusion/SDXL).
