@@ -21,6 +21,22 @@ from src.core.content_chains import (
 from src.models.image_generator import generate_image_from_prompt
 
 with st.sidebar:
+    language_map = {
+        "Español": "Spanish",
+        "Inglés": "English",
+        "Francés": "French",
+        "Italiano": "Italian",
+        "Japonés": "Japanese"
+    }
+    
+    st.header("Personalización de Marca")
+    brand_bio = st.text_area(
+        "Información de la Empresa/Persona:",
+        placeholder="Ej: Somos una agencia de marketing especializada en IA para e-commerce...",
+        help="Esta información se usará para personalizar el tono y el contenido."
+    )
+    st.divider()
+    
     st.header("Parámetros de Generación")
     
     st.subheader("🧠 Motor de Generación (LLM)")
@@ -46,12 +62,13 @@ with st.sidebar:
     
     st.divider()
     
-    target_language = st.selectbox(
+    selected_language = st.selectbox(
         "🌐 Idioma de Generación",
-        options=["Español", "Inglés", "Francés", "Italiano"],
+        options=list(language_map.keys()),
         index=0,
         help="Idioma en el que se generará el contenido base y sus adaptaciones."
     )
+    target_language = language_map[selected_language]
     st.divider()
     
     topic = st.text_input("Tema del Contenido:", "El impacto de la IA en la creatividad")
@@ -80,9 +97,14 @@ if generate_button:
         except Exception as e:
             st.error(f"No se pudo inicializar un componente. Error: {e}")
             st.stop()
+            
+        if brand_bio.strip() == "":
+            brand_bio = "No proporcionado."
+        else:
+            brand_bio = brand_bio.strip()
         
         with st.spinner("Generando Artículo de Blog..."):
-            inputs = {"topic": topic, "audience": audience, "target_language": target_language}
+            inputs = {"topic": topic, "audience": audience, "target_language": target_language, "brand_bio": brand_bio}
             blog_content = blog_chain.invoke(inputs)
             
             st.markdown("### 📝 Artículo de Blog (Contenido Base)")
@@ -93,7 +115,7 @@ if generate_button:
         if generate_twitter:
             st.markdown("### 🐦 Adaptación para Twitter/X")
             with st.spinner("Adaptando contenido a formato Twitter/X..."):
-                twitter_inputs = {"blog_content": blog_content, "target_language": target_language}
+                twitter_inputs = {"blog_content": blog_content, "target_language": target_language, "brand_bio": brand_bio}
                 twitter_content = twitter_adaptor_chain.invoke(twitter_inputs)
                 st.markdown(twitter_content)
             st.divider()
@@ -101,7 +123,7 @@ if generate_button:
         if generate_instagram:
             st.markdown("### 📸 3. Adaptación para Instagram")
             with st.spinner("Adaptando contenido a Instagram (Caption)..."):
-                instagram_inputs = {"blog_content": blog_content, "target_language": target_language}
+                instagram_inputs = {"blog_content": blog_content, "target_language": target_language, "brand_bio": brand_bio}
                 instagram_content = instagram_adaptor_chain.invoke(instagram_inputs)
                 st.markdown(instagram_content)
             st.divider()
@@ -109,7 +131,7 @@ if generate_button:
         if generate_linkedin:
             st.markdown("### 💼 4. Adaptación para LinkedIn")
             with st.spinner("Adaptando contenido a LinkedIn..."):
-                linkedin_inputs = {"blog_content": blog_content, "target_language": target_language}
+                linkedin_inputs = {"blog_content": blog_content, "target_language": target_language, "brand_bio": brand_bio}
                 linkedin_content = linkedin_adaptor_chain.invoke(linkedin_inputs)
                 st.markdown(linkedin_content)
             st.divider()
@@ -118,7 +140,7 @@ if generate_button:
             st.markdown("### 🖼️ Imagen de Portada")
             
             with st.spinner("1/2: Generando prompt de imagen..."):
-                image_prompt = image_prompt_chain.invoke(inputs)
+                image_prompt = image_prompt_chain.invoke({"blog_content": blog_content})
                 st.info(f"**Prompt de Imagen Generado:** `{image_prompt}`")
             
             with st.spinner("2/2: Generando la imagen (Hugging Face API)..."):
