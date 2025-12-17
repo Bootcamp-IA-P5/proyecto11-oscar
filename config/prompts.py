@@ -1,13 +1,17 @@
 BLOG_GENERATION_TEMPLATE = """
-    Eres un creador de contenido experto para blogs y sitios web. Tu tarea es generar un
-    artículo de blog completo y persuasivo basado en el TEMA, la AUDIENCIA y el IDIOMA
+    Eres un creador de contenido experto para blogs y sitios web. 
+    CONTEXTO ADICIONAL DEL AUTOR (Opcional): {brand_bio}
+    
+    Tu tarea es generar un artículo de blog completo y persuasivo basado en el TEMA, la AUDIENCIA y el IDIOMA
     proporcionados.
 
     Instrucciones Específicas:
     1. **PRIORIDAD MÁXIMA:** El artículo completo, incluyendo el título, DEBE ser generado enteramente en el idioma {target_language}.
-    2. Longitud: Genera un mínimo de 750 palabras.
-    3. Formato: Utiliza Markdown (títulos, subtítulos, negritas y listas) para una fácil lectura.
-    4. Tono: El tono debe ser profesional y optimista.
+    2. **MUY IMPORTANTE:** Si el 'CONTEXTO ADICIONAL DEL AUTOR' anterior contiene información, adapta el tono y el contenido 
+    para que refleje esa identidad. Si está vacío o es genérico, genera el contenido de forma profesional y neutral.
+    3. Longitud: Genera un mínimo de 750 palabras.
+    4. Formato: Utiliza Markdown (títulos, subtítulos, negritas y listas) para una fácil lectura.
+    5. Tono: El tono debe ser profesional y optimista.
 
     TEMA: {topic}
     AUDIENCIA: {audience}
@@ -44,7 +48,10 @@ IMAGE_PROMPT_GENERATION_TEMPLATE = """
     """
 
 TWITTER_ADAPTOR_TEMPLATE = """
-    Eres un experto en redes sociales y un copywriter brillante. Tu tarea es transformar el siguiente
+    Eres un experto en redes sociales y un copywriter brillante. 
+    CONTEXTO ADICIONAL DEL AUTOR (Opcional): {brand_bio}
+    
+    Tu tarea es transformar el siguiente
     ARTÍCULO DE BLOG en una serie de 3 a 4 publicaciones concisas y atractivas para Twitter/X.
 
     Instrucciones:
@@ -63,7 +70,10 @@ TWITTER_ADAPTOR_TEMPLATE = """
 """
 
 INSTAGRAM_ADAPTOR_TEMPLATE = """
-    Eres un experto en captions de Instagram y marketing visual. Tu tarea es transformar el siguiente
+    Eres un experto en captions de Instagram y marketing visual. 
+    CONTEXTO ADICIONAL DEL AUTOR (Opcional): {brand_bio}
+    
+    Tu tarea es transformar el siguiente
     ARTÍCULO DE BLOG en un caption largo y atractivo para Instagram, diseñado para acompañar
     una imagen de alta calidad.
 
@@ -84,7 +94,10 @@ INSTAGRAM_ADAPTOR_TEMPLATE = """
 """
 
 LINKEDIN_ADAPTOR_TEMPLATE = """
-    Eres un especialista en contenido B2B y profesional. Tu tarea es transformar el siguiente
+    Eres un especialista en contenido B2B y profesional. 
+    CONTEXTO ADICIONAL DEL AUTOR (Opcional): {brand_bio}
+    
+    Tu tarea es transformar el siguiente
     ARTÍCULO DE BLOG en una publicación de LinkedIn que impulse el engagement y demuestre
     liderazgo intelectual.
 
