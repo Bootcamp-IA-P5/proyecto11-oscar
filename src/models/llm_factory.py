@@ -66,7 +66,7 @@ def get_llm_groq() -> BaseChatModel:
             temperature=0.1,             # Lower temperature (0.0 - 0.3) reduces "rambling"
             max_retries=5,               # Groq rate limits are brief; more retries help
             timeout=30,                  # Groq is fast; if it takes >30s, something is wrong
-            max_tokens=2000,             # Set a limit if you want to cap usage/costs
+            max_tokens=None,             # Set a limit if you want to cap usage/costs
         )
         log.info(f"✅ LLM '{model_name}' (Groq) successfully initialized.")
         return llm

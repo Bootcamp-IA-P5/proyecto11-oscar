@@ -21,6 +21,14 @@ from src.core.content_chains import (
 from src.models.image_generator import generate_image_from_prompt
 
 with st.sidebar:
+    language_map = {
+        "Español": "Spanish",
+        "Inglés": "English",
+        "Francés": "French",
+        "Italiano": "Italian",
+        "Japonés": "Japanese"
+    }
+    
     st.header("Personalización de Marca")
     brand_bio = st.text_area(
         "Información de la Empresa/Persona:",
@@ -54,12 +62,13 @@ with st.sidebar:
     
     st.divider()
     
-    target_language = st.selectbox(
+    selected_language = st.selectbox(
         "🌐 Idioma de Generación",
-        options=["Español", "Inglés", "Francés", "Italiano"],
+        options=list(language_map.keys()),
         index=0,
         help="Idioma en el que se generará el contenido base y sus adaptaciones."
     )
+    target_language = language_map[selected_language]
     st.divider()
     
     topic = st.text_input("Tema del Contenido:", "El impacto de la IA en la creatividad")
@@ -90,7 +99,7 @@ if generate_button:
             st.stop()
             
         if brand_bio.strip() == "":
-            brand_bio = "No se ha proporcionado información específica. Usa un tono profesional estándar."
+            brand_bio = "No proporcionado."
         else:
             brand_bio = brand_bio.strip()
         
@@ -131,7 +140,7 @@ if generate_button:
             st.markdown("### 🖼️ Imagen de Portada")
             
             with st.spinner("1/2: Generando prompt de imagen..."):
-                image_prompt = image_prompt_chain.invoke(inputs)
+                image_prompt = image_prompt_chain.invoke({"blog_content": blog_content})
                 st.info(f"**Prompt de Imagen Generado:** `{image_prompt}`")
             
             with st.spinner("2/2: Generando la imagen (Hugging Face API)..."):
