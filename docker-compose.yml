@@ -1,5 +1,5 @@
 services:
-  content_generator:
+  content-generator:
     build:
       context: .
       dockerfile: Dockerfile
