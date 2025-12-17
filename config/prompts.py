@@ -1,16 +1,19 @@
 BLOG_GENERATION_TEMPLATE = """
-    Eres un experto en marketing de contenidos. Tu tarea es generar un artículo de blog completo 
-    y atractivo.
+    Eres un creador de contenido experto para blogs y sitios web. Tu tarea es generar un
+    artículo de blog completo y persuasivo basado en el TEMA, la AUDIENCIA y el IDIOMA
+    proporcionados.
 
-    Instrucciones:
-    1. Genera un título pegadizo para el blog (usa encabezados de Markdown).
-    2. Escribe una introducción atractiva.
-    3. Desarrolla 3-4 puntos clave en secciones separadas (usa encabezados de Markdown).
-    4. Concluye con un resumen y una llamada a la acción clara.
-    5. El contenido debe estar formateado en Markdown sin iconos.
+    Instrucciones Específicas:
+    1. **PRIORIDAD MÁXIMA:** El artículo completo, incluyendo el título, DEBE ser generado enteramente en el idioma {target_language}.
+    2. Longitud: Genera un mínimo de 750 palabras.
+    3. Formato: Utiliza Markdown (títulos, subtítulos, negritas y listas) para una fácil lectura.
+    4. Tono: El tono debe ser profesional y optimista.
 
-    Tema a desarrollar: {topic}
-    Audiencia principal: {audience}
+    TEMA: {topic}
+    AUDIENCIA: {audience}
+    IDIOMA OBJETIVO: {target_language}
+    
+    Artículo de Blog:
 """
 
 # IMAGE_PROMPT_GENERATION_TEMPLATE = """
@@ -45,10 +48,11 @@ TWITTER_ADAPTOR_TEMPLATE = """
     ARTÍCULO DE BLOG en una serie de 3 a 4 publicaciones concisas y atractivas para Twitter/X.
 
     Instrucciones:
-    1. Divide el contenido en 3-4 tweets lógicos, cada uno con menos de 280 caracteres.
-    2. Cada tweet debe ser impactante y autónomo, pero deben estar numerados o en formato hilo (Tweet 1/4, 2/4, etc.).
-    3. Incluye 2-3 hashtags relevantes y populares al final de cada tweet.
-    4. El tono debe ser directo y profesional pero con un toque de intriga.
+    1. **PRIORIDAD MÁXIMA:** La salida DEBE estar enteramente en {target_language}.
+    2. Divide el contenido en 3-4 tweets lógicos, cada uno con menos de 280 caracteres.
+    3. Cada tweet debe ser impactante y autónomo, pero deben estar numerados o en formato hilo (Tweet 1/4, 2/4, etc.).
+    4. Incluye 2-3 hashtags relevantes y populares al final de cada tweet.
+    5. El tono debe ser directo y profesional pero con un toque de intriga.
 
     ARTÍCULO DE BLOG:
     ---
@@ -64,11 +68,12 @@ INSTAGRAM_ADAPTOR_TEMPLATE = """
     una imagen de alta calidad.
 
     Instrucciones:
-    1. Genera un titular corto y llamativo al inicio (gancho).
-    2. Resume los puntos clave del blog en 3-5 párrafos cortos y fáciles de leer.
-    3. Usa emojis estratégicamente para mejorar la legibilidad.
-    4. Incluye un espacio y luego una lista de al menos 10 hashtags altamente relevantes y populares.
-    5. Usa saltos de línea para que el texto sea escaneable.
+    1. **PRIORIDAD MÁXIMA:** La salida DEBE estar enteramente en {target_language}.
+    2. Genera un titular corto y llamativo al inicio (gancho).
+    3. Resume los puntos clave del blog en 3-5 párrafos cortos y fáciles de leer.
+    4. Usa emojis estratégicamente para mejorar la legibilidad.
+    5. Incluye un espacio y luego una lista de al menos 10 hashtags altamente relevantes y populares.
+    6. Usa saltos de línea para que el texto sea escaneable.
 
     ARTÍCULO DE BLOG:
     ---
@@ -84,11 +89,12 @@ LINKEDIN_ADAPTOR_TEMPLATE = """
     liderazgo intelectual.
 
     Instrucciones:
-    1. El tono debe ser profesional, analítico y enfocado en el valor para la carrera/negocio.
-    2. Comienza con una pregunta o declaración impactante para detener el scroll.
-    3. Utiliza párrafos cortos o puntos clave (con bullets o números).
-    4. Termina con una llamada a la acción profesional (ej: "Déjame un comentario...", "Sígueme para más...").
-    5. Incluye 5 hashtags B2B o de la industria relevantes al final.
+    1. **PRIORIDAD MÁXIMA:** La salida DEBE estar enteramente en {target_language}.
+    2. El tono debe ser profesional, analítico y enfocado en el valor para la carrera/negocio.
+    3. Comienza con una pregunta o declaración impactante para detener el scroll.
+    4. Utiliza párrafos cortos o puntos clave (con bullets o números).
+    5. Termina con una llamada a la acción profesional (ej: "Déjame un comentario...", "Sígueme para más...").
+    6. Incluye 5 hashtags B2B o de la industria relevantes al final.
 
     ARTÍCULO DE BLOG:
     ---

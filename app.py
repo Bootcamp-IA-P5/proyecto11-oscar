@@ -44,12 +44,14 @@ with st.sidebar:
             "esté descargado. Si no está configurado, la aplicación fallará al generar."
         )
     
-    # llm_selection = st.selectbox(
-    #     "🧠 Modelo de Lenguaje (LLM)",
-    #     options=["Gemini", "Groq"],
-    #     index=1,
-    #     help="Gemini: Versátil, Groq: Ultra-rápido."
-    # )
+    st.divider()
+    
+    target_language = st.selectbox(
+        "🌐 Idioma de Generación",
+        options=["Español", "Inglés", "Francés", "Italiano"],
+        index=0,
+        help="Idioma en el que se generará el contenido base y sus adaptaciones."
+    )
     st.divider()
     
     topic = st.text_input("Tema del Contenido:", "El impacto de la IA en la creatividad")
@@ -80,7 +82,7 @@ if generate_button:
             st.stop()
         
         with st.spinner("Generando Artículo de Blog..."):
-            inputs = {"topic": topic, "audience": audience}
+            inputs = {"topic": topic, "audience": audience, "target_language": target_language}
             blog_content = blog_chain.invoke(inputs)
             
             st.markdown("### 📝 Artículo de Blog (Contenido Base)")
@@ -91,7 +93,7 @@ if generate_button:
         if generate_twitter:
             st.markdown("### 🐦 Adaptación para Twitter/X")
             with st.spinner("Adaptando contenido a formato Twitter/X..."):
-                twitter_inputs = {"blog_content": blog_content}
+                twitter_inputs = {"blog_content": blog_content, "target_language": target_language}
                 twitter_content = twitter_adaptor_chain.invoke(twitter_inputs)
                 st.markdown(twitter_content)
             st.divider()
@@ -99,7 +101,7 @@ if generate_button:
         if generate_instagram:
             st.markdown("### 📸 3. Adaptación para Instagram")
             with st.spinner("Adaptando contenido a Instagram (Caption)..."):
-                instagram_inputs = {"blog_content": blog_content}
+                instagram_inputs = {"blog_content": blog_content, "target_language": target_language}
                 instagram_content = instagram_adaptor_chain.invoke(instagram_inputs)
                 st.markdown(instagram_content)
             st.divider()
@@ -107,7 +109,7 @@ if generate_button:
         if generate_linkedin:
             st.markdown("### 💼 4. Adaptación para LinkedIn")
             with st.spinner("Adaptando contenido a LinkedIn..."):
-                linkedin_inputs = {"blog_content": blog_content}
+                linkedin_inputs = {"blog_content": blog_content, "target_language": target_language}
                 linkedin_content = linkedin_adaptor_chain.invoke(linkedin_inputs)
                 st.markdown(linkedin_content)
             st.divider()
