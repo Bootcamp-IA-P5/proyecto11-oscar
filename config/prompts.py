@@ -17,8 +17,9 @@ BLOG_GENERATION_TEMPLATE = """
     2. Use the brand profile provided above to define the tone.
     3. Use Markdown formatting.
 
-    ARTICLE IN {target_language}: [/INST]
-"""
+    ARTICLE IN {target_language}:
+    [/INST]
+    """
 
 TWITTER_ADAPTOR_TEMPLATE = """
     [INST] <<SYS>>
@@ -38,8 +39,9 @@ TWITTER_ADAPTOR_TEMPLATE = """
     2. Ensure the tone matches the BRAND CONTEXT.
     3. Use emojis and maintain the specific language: {target_language}.
 
-    TWITTER THREAD IN {target_language}: [/INST]
-"""
+    TWITTER THREAD IN {target_language}: 
+    [/INST]
+    """
 
 INSTAGRAM_ADAPTOR_TEMPLATE = """
     [INST] <<SYS>>
@@ -58,8 +60,9 @@ INSTAGRAM_ADAPTOR_TEMPLATE = """
     2. Tone: Visual, punchy, and aligned with BRAND CONTEXT.
     3. Include emojis and a call to action.
 
-    INSTAGRAM CAPTION IN {target_language}: [/INST]
-"""
+    INSTAGRAM CAPTION IN {target_language}: 
+    [/INST]
+    """
 
 LINKEDIN_ADAPTOR_TEMPLATE = """
     [INST] <<SYS>>
@@ -78,8 +81,9 @@ LINKEDIN_ADAPTOR_TEMPLATE = """
     2. Match the tone of the BRAND CONTEXT.
     3. Use professional formatting (bullet points) and 5 relevant hashtags.
 
-    LINKEDIN POST IN {target_language}: [/INST]
-"""
+    LINKEDIN POST IN {target_language}: 
+    [/INST]
+    """
 
 IMAGE_PROMPT_GENERATION_TEMPLATE = """
     [INST] <<SYS>>
@@ -96,5 +100,6 @@ IMAGE_PROMPT_GENERATION_TEMPLATE = """
     3. Style: Photorealistic, cinematic lighting, 8k, professional photography.
     4. Do NOT include any text or words in the image.
 
-    IMAGE PROMPT (ENGLISH ONLY): [/INST]
-"""
+    IMAGE PROMPT (ENGLISH ONLY): 
+    [/INST]
+    """
