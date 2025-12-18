@@ -14,6 +14,9 @@ Content creators, digital marketers, social media managers, bloggers, small busi
 The application provides a user-friendly Streamlit interface to interact with powerful LLMs, enabling the generation and adaptation of content based on user-defined topics and target audiences.
 
 ### Key Features
+*   **Increase knowledge:** Search and download technical papers from Arxiv.
+*   **Multilingual:** Choose the output language
+*   **Personalization:** Personalize the generation of the documents with your personal/company information.
 *   **Blog Article Generation:** Create detailed and structured blog posts from a given topic and audience.
 *   **Multi-Platform Content Adaptation:**
     *   **Twitter/X:** Condense and reformat blog content into concise, engaging tweets.
@@ -127,11 +130,13 @@ This command maps port `8501` from the container to port `8501` on your host mac
 
 After starting the application (either locally or via Docker), open your web browser and navigate to `http://localhost:8501`.
 
-1.  **Input Parameters:** In the sidebar, enter the `Topic` for your content and define your `Audience`.
-2.  **Select Adaptations:** Check the boxes for the platforms you want to adapt the content for (Twitter/X, Instagram, LinkedIn) and if you want to generate a cover image.
-3.  **Choose LLM Provider:** Select your preferred LLM provider from the dropdown (Gemini, Groq, or Ollama). Remember the warning if selecting Ollama.
-4.  **Generate Content:** Click the "Generar Todo el Contenido" button.
-5.  **View Results:** The generated blog article and its adaptations for selected platforms, along with the cover image, will appear in the main content area.
+1.  **Technical database:** Search for technical papers and download them.
+2.  **Browse the database:** List the downloaded papers.
+3.  **Input Parameters:** Tune up the content generation: enter your personal information, choose the default LLM or select the output language.
+4.  **Topic and audience:** Enter the `topic` for your content and define your `audience`.
+5.  **Select Adaptations:** Check the boxes for the platforms you want to adapt the content for (Twitter/X, Instagram, LinkedIn) and if you want to generate a cover image.
+6.  **Generate Content:** Click the "Generar Todo el Contenido" button.
+7.  **View Results:** The generated blog article and its adaptations for selected platforms, along with the cover image, will appear in the main content area.
 
 ## 🤝 Contributing & Support
 

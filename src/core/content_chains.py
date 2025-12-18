@@ -7,7 +7,8 @@ from config.prompts import (
     TWITTER_ADAPTOR_TEMPLATE,
     INSTAGRAM_ADAPTOR_TEMPLATE,
     LINKEDIN_ADAPTOR_TEMPLATE,
-    IMAGE_PROMPT_GENERATION_TEMPLATE
+    IMAGE_PROMPT_GENERATION_TEMPLATE,
+    SCIENCE_DIVULGATION_TEMPLATE
 )
 
 def create_chain(llm: BaseChatModel, template: str):
@@ -129,3 +130,7 @@ def create_image_prompt_chain(llm_choice: str):
     """
     llm = get_llm(llm_choice)
     return create_chain(llm, IMAGE_PROMPT_GENERATION_TEMPLATE)
+
+def generate_science_post_chain(llm_choice: str):
+    llm = get_llm(llm_choice)
+    return create_chain(llm, SCIENCE_DIVULGATION_TEMPLATE)
