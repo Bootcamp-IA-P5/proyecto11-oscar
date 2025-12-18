@@ -12,141 +12,273 @@ streamlit run app.py
 """
 import streamlit as st
 
+from src.core.content_chains import (
+    create_blog_chain, create_image_prompt_chain,
+    create_instagram_adaptor_chain, create_linkedin_adaptor_chain,
+    create_twitter_adaptor_chain
+)
+from src.models.image_generator import (generate_image_from_huggingface,
+                                        generate_image_from_replicate)
+
 st.set_page_config(layout="wide")
 
-from src.core.content_chains import (
-    create_twitter_adaptor_chain, create_image_prompt_chain,
-    create_instagram_adaptor_chain, create_linkedin_adaptor_chain, create_blog_chain
-)
-from src.models.image_generator import generate_image_from_prompt
 
-with st.sidebar:
-    language_map = {
-        "Español": "Spanish",
-        "Inglés": "English",
-        "Francés": "French",
-        "Italiano": "Italian",
-        "Japonés": "Japanese"
-    }
-    
-    st.header("Personalización de Marca")
-    brand_bio = st.text_area(
-        "Información de la Empresa/Persona:",
-        placeholder="Ej: Somos una agencia de marketing especializada en IA para e-commerce...",
-        help="Esta información se usará para personalizar el tono y el contenido."
-    )
-    st.divider()
-    
-    st.header("Parámetros de Generación")
-    
-    st.subheader("🧠 Motor de Generación (LLM)")
-    
-    llm_options = ["Gemini (Nube, Prioritario)", "Groq (Nube, Rápido)", "Ollama (Local, Requiere setup)"]
-    
-    llm_selection_display = st.selectbox(
-        "Seleccionar Proveedor",
-        options=llm_options,
-        index=1,
-        help="Gemini: Versátil; Groq: Ultra-rápido; Ollama: Requiere servidor local Ollama."
-    )
-    
-    llm_selection = llm_selection_display.split('(')[0].strip()
-    
-    # Advertencia específica si selecciona Ollama
-    if llm_selection == "Ollama":
-        st.warning(
-            "⚠️ **ADVERTENCIA:** Ollama está seleccionado. Esta opción requiere que el servidor "
-            "de Ollama esté corriendo localmente en el puerto 11434 y que el modelo necesario "
-            "esté descargado. Si no está configurado, la aplicación fallará al generar."
+def render_sidebar():
+    """
+    Renders the sidebar UI and collects user input for content generation.
+
+    This function creates all the interactive widgets in the sidebar, allowing
+    the user to specify brand information, choose a language model, set the
+    generation language, define the topic and audience, and select which
+    content pieces to generate (e.g., social media adaptations, cover image).
+
+    Returns:
+        tuple: A tuple containing all the user-selected settings:
+            - brand_bio (str): Information about the company or person.
+            - llm_selection (str): The chosen language model provider.
+            - target_language (str): The language for the generated content.
+            - topic (str): The main topic for the content.
+            - audience (str): The target audience for the content.
+            - generate_twitter (bool): Flag to generate a Twitter adaptation.
+            - generate_instagram (bool): Flag to generate an Instagram adaptation.
+            - generate_linkedin (bool): Flag to generate a LinkedIn adaptation.
+            - generate_image (bool): Flag to generate a cover image.
+            - image_provider (str or None): The selected image generation provider.
+            - generate_button (bool): True if the generation button was clicked.
+    """
+    with st.sidebar:
+        language_map = {
+            "Español": "Spanish",
+            "Inglés": "English",
+            "Francés": "French",
+            "Italiano": "Italian",
+            "Japonés": "Japanese",
+        }
+
+        st.header("Personalización de Marca")
+        brand_bio = st.text_area(
+            "Información de la Empresa/Persona:",
+            placeholder="Ej: Somos una agencia de marketing especializada en IA...",
+            help="Esta información se usará para personalizar el tono y el contenido.",
         )
-    
-    st.divider()
-    
-    selected_language = st.selectbox(
-        "🌐 Idioma de Generación",
-        options=list(language_map.keys()),
-        index=0,
-        help="Idioma en el que se generará el contenido base y sus adaptaciones."
-    )
-    target_language = language_map[selected_language]
-    st.divider()
-    
-    topic = st.text_input("Tema del Contenido:", "El impacto de la IA en la creatividad")
-    audience = st.text_input("Audiencia Objetivo:", "Diseñadores gráficos y artistas digitales")
-    
-    generate_twitter = st.checkbox("Adaptar a Twitter/X", value=False)
-    generate_instagram = st.checkbox("Adaptar a Instagram", value=False)
-    generate_linkedin = st.checkbox("Adaptar a LinkedIn", value=False)
-    generate_image = st.checkbox("Generar Imagen de Portada", value=False)
-    
-    generate_button = st.button("Generar Todo el Contenido", type="primary")
-
-st.subheader("Contenido Generado (PoC)")
-
-if generate_button:
-    if not topic or not audience:
-        st.warning("Por favor, introduce el Tema y la Audiencia.")
-    else:
-        try:
-            st.info(f"Inicializando motor de contenido con: **{llm_selection}**...")
-            blog_chain = create_blog_chain(llm_selection)
-            image_prompt_chain = create_image_prompt_chain(llm_selection)
-            twitter_adaptor_chain = create_twitter_adaptor_chain(llm_selection)
-            instagram_adaptor_chain = create_instagram_adaptor_chain(llm_selection)
-            linkedin_adaptor_chain = create_linkedin_adaptor_chain(llm_selection)
-        except Exception as e:
-            st.error(f"No se pudo inicializar un componente. Error: {e}")
-            st.stop()
-            
-        if brand_bio.strip() == "":
-            brand_bio = "No proporcionado."
-        else:
-            brand_bio = brand_bio.strip()
-        
-        with st.spinner("Generando Artículo de Blog..."):
-            inputs = {"topic": topic, "audience": audience, "target_language": target_language, "brand_bio": brand_bio}
-            blog_content = blog_chain.invoke(inputs)
-            
-            st.markdown("### 📝 Artículo de Blog (Contenido Base)")
-            st.markdown(blog_content)
-        
         st.divider()
 
-        if generate_twitter:
-            st.markdown("### 🐦 Adaptación para Twitter/X")
-            with st.spinner("Adaptando contenido a formato Twitter/X..."):
-                twitter_inputs = {"blog_content": blog_content, "target_language": target_language, "brand_bio": brand_bio}
-                twitter_content = twitter_adaptor_chain.invoke(twitter_inputs)
-                st.markdown(twitter_content)
-            st.divider()
-            
-        if generate_instagram:
-            st.markdown("### 📸 3. Adaptación para Instagram")
-            with st.spinner("Adaptando contenido a Instagram (Caption)..."):
-                instagram_inputs = {"blog_content": blog_content, "target_language": target_language, "brand_bio": brand_bio}
-                instagram_content = instagram_adaptor_chain.invoke(instagram_inputs)
-                st.markdown(instagram_content)
-            st.divider()
+        st.header("Parámetros de Generación")
+        st.subheader("🧠 Motor de Generación (LLM)")
+        llm_options = [
+            "Gemini (Nube, Prioritario)",
+            "Groq (Nube, Rápido)",
+            "Ollama (Local, Requiere setup)",
+        ]
+        llm_selection_display = st.selectbox(
+            "Seleccionar Proveedor",
+            options=llm_options,
+            index=1,
+            help="Gemini: Versátil; Groq: Ultra-rápido; Ollama: Requiere servidor local.",
+        )
+        llm_selection = llm_selection_display.split("(")[0].strip()
 
-        if generate_linkedin:
-            st.markdown("### 💼 4. Adaptación para LinkedIn")
-            with st.spinner("Adaptando contenido a LinkedIn..."):
-                linkedin_inputs = {"blog_content": blog_content, "target_language": target_language, "brand_bio": brand_bio}
-                linkedin_content = linkedin_adaptor_chain.invoke(linkedin_inputs)
-                st.markdown(linkedin_content)
-            st.divider()
+        if llm_selection == "Ollama":
+            st.warning(
+                "⚠️ **ADVERTENCIA:** Ollama requiere un servidor local en el puerto "
+                "11434 con el modelo necesario descargado."
+            )
 
+        st.divider()
+        selected_language = st.selectbox(
+            "🌐 Idioma de Generación",
+            options=list(language_map.keys()),
+            index=0,
+            help="Idioma en el que se generará el contenido base y sus adaptaciones.",
+        )
+        target_language = language_map[selected_language]
+        st.divider()
+
+        topic = st.text_input(
+            "Tema del Contenido:", "El uso de la IA en los automóviles modernos"
+        )
+        audience = st.text_input(
+            "Audiencia Objetivo:", "Conductores mayores de 50 años"
+        )
+
+        generate_twitter = st.checkbox("Adaptar a Twitter/X", value=False)
+        generate_instagram = st.checkbox("Adaptar a Instagram", value=False)
+        generate_linkedin = st.checkbox("Adaptar a LinkedIn", value=False)
+        generate_image = st.checkbox("Generar imagen de portada", value=False)
+
+        image_provider = None
         if generate_image:
-            st.markdown("### 🖼️ Imagen de Portada")
-            
-            with st.spinner("1/2: Generando prompt de imagen..."):
-                image_prompt = image_prompt_chain.invoke({"blog_content": blog_content})
-                st.info(f"**Prompt de Imagen Generado:** `{image_prompt}`")
-            
-            with st.spinner("2/2: Generando la imagen (Hugging Face API)..."):
-                generated_image = generate_image_from_prompt(image_prompt)
-                
-                if generated_image:
-                    st.image(generated_image, caption=topic, width='stretch')
-                else:
-                    st.warning("No se pudo generar la imagen.")
+            image_provider = st.selectbox(
+                "Proveedor de Imagen", ["Replicate (Flux)", "Hugging Face (SDXL)"]
+            )
+        else:
+            st.info("💡 Solo se generará el contenido de texto.")
+
+        generate_button = st.button("Generar Todo el Contenido", type="primary")
+
+    return (
+        brand_bio,
+        llm_selection,
+        target_language,
+        topic,
+        audience,
+        generate_twitter,
+        generate_instagram,
+        generate_linkedin,
+        generate_image,
+        image_provider,
+        generate_button,
+    )
+
+
+def generate_content(
+    brand_bio,
+    llm_selection,
+    target_language,
+    topic,
+    audience,
+    generate_twitter,
+    generate_instagram,
+    generate_linkedin,
+    generate_image,
+    image_provider,
+):
+    """
+    Generates and displays content based on the user's selections.
+
+    This function orchestrates the content generation process. It initializes the
+    required language model chains, generates a base blog article, and then creates
+    adaptations for social media platforms and a cover image if requested.
+
+    Args:
+        brand_bio (str): The brand biography provided by the user.
+        llm_selection (str): The selected language model (e.g., "Gemini", "Groq").
+        target_language (str): The target language for the content.
+        topic (str): The main topic for the content generation.
+        audience (str): The target audience for the content.
+        generate_twitter (bool): If True, generates content for Twitter/X.
+        generate_instagram (bool): If True, generates content for Instagram.
+        generate_linkedin (bool): If True, generates content for LinkedIn.
+        generate_image (bool): If True, generates a cover image.
+        image_provider (str or None): The provider for the image generation service.
+    """
+    if not topic or not audience:
+        st.warning("Por favor, introduce el Tema y la Audiencia.")
+        return
+
+    try:
+        st.info(f"Inicializando motor de contenido con: **{llm_selection}**...")
+        blog_chain = create_blog_chain(llm_selection)
+        image_prompt_chain = create_image_prompt_chain(llm_selection)
+        twitter_adaptor_chain = create_twitter_adaptor_chain(llm_selection)
+        instagram_adaptor_chain = create_instagram_adaptor_chain(llm_selection)
+        linkedin_adaptor_chain = create_linkedin_adaptor_chain(llm_selection)
+    except Exception as e:
+        st.error(f"No se pudo inicializar un componente. Error: {e}")
+        st.stop()
+
+    brand_bio = brand_bio.strip() if brand_bio.strip() else "No proporcionado."
+
+    with st.spinner("Generando Artículo de Blog..."):
+        inputs = {
+            "topic": topic,
+            "audience": audience,
+            "target_language": target_language,
+            "brand_bio": brand_bio,
+        }
+        blog_content = blog_chain.invoke(inputs)
+        st.markdown("### 📝 Artículo de Blog (Contenido Base)")
+        st.markdown(blog_content)
+    st.divider()
+
+    if generate_twitter:
+        st.markdown("### 🐦 Adaptación para Twitter/X")
+        with st.spinner("Adaptando contenido a formato Twitter/X..."):
+            twitter_inputs = {
+                "blog_content": blog_content,
+                "target_language": target_language,
+                "brand_bio": brand_bio,
+            }
+            twitter_content = twitter_adaptor_chain.invoke(twitter_inputs)
+            st.markdown(twitter_content)
+        st.divider()
+
+    if generate_instagram:
+        st.markdown("### 📸 Adaptación para Instagram")
+        with st.spinner("Adaptando contenido a Instagram (Caption)..."):
+            insta_inputs = {
+                "blog_content": blog_content,
+                "target_language": target_language,
+                "brand_bio": brand_bio,
+            }
+            instagram_content = instagram_adaptor_chain.invoke(insta_inputs)
+            st.markdown(instagram_content)
+        st.divider()
+
+    if generate_linkedin:
+        st.markdown("### 💼 Adaptación para LinkedIn")
+        with st.spinner("Adaptando contenido a LinkedIn..."):
+            linkedin_inputs = {
+                "blog_content": blog_content,
+                "target_language": target_language,
+                "brand_bio": brand_bio,
+            }
+            linkedin_content = linkedin_adaptor_chain.invoke(linkedin_inputs)
+            st.markdown(linkedin_content)
+        st.divider()
+
+    if generate_image and image_provider:
+        with st.spinner(f"Renderizando imagen con {image_provider}..."):
+            img_prompt = image_prompt_chain.invoke({"blog_content": blog_content})
+
+            if "Replicate" in image_provider:
+                path = generate_image_from_replicate(img_prompt)
+            else:
+                path = generate_image_from_huggingface(img_prompt)
+
+            if path and not path.startswith("Error"):
+                st.image(path, caption=f"Portada generada vía {image_provider}")
+            else:
+                st.error(f"No se pudo generar la imagen: {path}")
+
+
+def main():
+    """
+    Main function to run the Streamlit application.
+
+    This function sets up the main UI, renders the sidebar to get user inputs,
+    and triggers the content generation process when the user clicks the button.
+    """
+    st.subheader("Contenido Generado (PoC)")
+
+    (
+        brand_bio,
+        llm_selection,
+        target_language,
+        topic,
+        audience,
+        generate_twitter,
+        generate_instagram,
+        generate_linkedin,
+        generate_image,
+        image_provider,
+        generate_button,
+    ) = render_sidebar()
+
+    if generate_button:
+        generate_content(
+            brand_bio,
+            llm_selection,
+            target_language,
+            topic,
+            audience,
+            generate_twitter,
+            generate_instagram,
+            generate_linkedin,
+            generate_image,
+            image_provider,
+        )
+
+
+if __name__ == "__main__":
+    main()
