@@ -9,10 +9,12 @@ from PIL import Image
 import time
 from huggingface_hub import InferenceClient
 from huggingface_hub.utils import RepositoryNotFoundError
+import requests
+import replicate
 
 from src.core.logger.logger import Logger
 from src.core.logger.log_setup import log_setup 
-from config.settings import HF_TOKEN, HF_MODEL
+from config.settings import HF_TOKEN, HF_MODEL, REPLICATE_API_TOKEN, REPLICATE_MODEL
 
 log_setup()
 log = Logger().log
@@ -33,7 +35,7 @@ def create_placeholder_image(text_input: str) -> Image.Image:
     img = Image.new('RGB', (W, H), color = (73, 109, 137))
     return img
 
-def generate_image_from_prompt(prompt: str) -> Image.Image | None:
+def generate_image_from_huggingface(prompt: str) -> Image.Image | None:
     """
     Generates an image from a text prompt using the Hugging Face Inference API.
 
@@ -89,3 +91,44 @@ def generate_image_from_prompt(prompt: str) -> Image.Image | None:
         
     log.info("⚠️ All try attempts failed. Using Mockup")
     return create_placeholder_image(prompt)
+
+def generate_image_from_replicate(prompt: str) -> str | None:
+    """
+    Generates an image from a text prompt using the Replicate API.
+
+    This function sends a prompt to the Replicate API to generate an image.
+    If the image is generated successfully, it is downloaded and saved to a
+    local file.
+
+    Args:
+        prompt (str): The text prompt to generate the image from.
+
+    Returns:
+        str | None: The file path of the generated image (e.g.,
+                    'generated_content.webp') if successful, otherwise None.
+    """
+    try:
+        output = replicate.run(
+            REPLICATE_MODEL,
+            input={
+                "prompt": prompt,
+                "aspect_ratio": "16:9",
+                "output_format": "webp",
+                "output_quality": 90
+            }
+        )
+
+        image_url = output[0]
+        
+        response = requests.get(image_url)
+        if response.status_code == 200:
+            image_path = "generated_content.webp"
+            with open(image_path, "wb") as f:
+                f.write(response.content)
+            return image_path
+            
+        return None
+
+    except Exception as e:
+        log.error(f"Error con Replicate: {e}")
+        return None
