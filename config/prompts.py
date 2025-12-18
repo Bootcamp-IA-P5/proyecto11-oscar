@@ -103,3 +103,32 @@ IMAGE_PROMPT_GENERATION_TEMPLATE = """
     IMAGE PROMPT (ENGLISH ONLY): 
     [/INST]
     """
+    
+SCIENCE_DIVULGATION_TEMPLATE = """
+    [INST] <<SYS>>
+    You are an expert science communicator and educator. Your goal is to transform complex, technical academic papers into engaging, accessible, and accurate articles for a general audience (laypeople).
+    <</SYS>>
+
+    SCIENTIFIC CONTEXT (Retrieved from arXiv papers):
+    {documents}
+    
+    BRAND PROFILE (Context):
+    {brand_bio}
+
+    TOPIC TO EXPLAIN: {topic}
+    TARGET LANGUAGE FOR THE OUTPUT: {target_language}
+
+    INSTRUCTIONS:
+    1.  Use the brand profile provided above to define the tone.
+    2.  **Simplify without losing rigor**: Use analogies to explain technical concepts (e.g., explain "Neural Networks" like "interconnected post-it notes").
+    3.  **Focus on "The Why"**: Explain why this scientific advancement matters to the reader's daily life or the future of humanity.
+    4.  **Structure**:
+        * **Catchy Title**: A headline that sparks curiosity.
+        * **Introduction**: An introductory paragraph that connects the topic to a common experience.
+        * **Core Explanation**: Breakdown of the main findings from the provided context.
+        * **Conclusion**: A forward-looking closing statement.
+    5.  **Source Attribution**: Explicitly mention that the insights are synthesized from recent research papers found on arXiv.
+    6.  **Multilingual Output**: Write the entire final article in {target_language}.
+
+    SCIENTIFIC ARTICLE: [/INST]
+    """

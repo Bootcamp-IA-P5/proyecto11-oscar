@@ -15,12 +15,25 @@ import streamlit as st
 from src.core.content_chains import (
     create_blog_chain, create_image_prompt_chain,
     create_instagram_adaptor_chain, create_linkedin_adaptor_chain,
-    create_twitter_adaptor_chain
+    create_twitter_adaptor_chain, generate_science_post_chain
 )
 from src.models.image_generator import (generate_image_from_huggingface,
                                         generate_image_from_replicate)
+from src.core.rag_engine import ScienceRAG
 
 st.set_page_config(layout="wide")
+
+@st.cache_resource
+def get_rag_engine():
+    return ScienceRAG()
+
+@st.cache_data
+def get_cached_papers(_rag_engine):
+    """
+    _rag_engine empieza con guion bajo para que Streamlit 
+    no intente hashear el objeto (ya que no cambia la salida).
+    """
+    return _rag_engine.list_indexed_papers()
 
 
 def render_sidebar():
@@ -46,7 +59,37 @@ def render_sidebar():
             - image_provider (str or None): The selected image generation provider.
             - generate_button (bool): True if the generation button was clicked.
     """
-    with st.sidebar:
+    rag = get_rag_engine()
+    
+    st.sidebar.title("Generador de contenidos")
+    
+    with st.sidebar.expander("🔬 Base de Datos Científica"):
+        topic_arxiv = st.text_input("Tema de investigación", value="LLM Safety")
+        num_papers = st.slider("Cantidad de papers (Máx 3 para evitar errores)", 1, 3, 1)
+        
+        if st.button("Actualizar Conocimiento"):
+            with st.spinner("Descargando y procesando..."):
+                status = rag.ingest_papers(topic_arxiv, max_results=num_papers)
+                st.cache_data.clear()
+                st.success(status)
+                st.rerun()
+            
+    with st.sidebar.expander("📄 Documentos disponibles"):
+        indexed_papers = get_cached_papers(rag)
+        
+        if indexed_papers:
+            st.write(f"Hay **{len(indexed_papers)}** documentos indexados:")
+            for i, doc in enumerate(indexed_papers, start=1):
+                st.markdown(f"{i}. {doc}")
+                
+            if st.button("Limpiar Base de Datos"):
+                rag.reset_database()
+                st.warning("Base de datos borrada.")
+                st.rerun()
+        else:
+            st.warning("No hay documentos indexados.")
+            
+    with st.sidebar.expander("⚙️ Parametros de generación"):
         language_map = {
             "Español": "Spanish",
             "Inglés": "English",
@@ -54,22 +97,21 @@ def render_sidebar():
             "Italiano": "Italian",
             "Japonés": "Japanese",
         }
-
-        st.header("Personalización de Marca")
-        brand_bio = st.text_area(
-            "Información de la Empresa/Persona:",
-            placeholder="Ej: Somos una agencia de marketing especializada en IA...",
-            help="Esta información se usará para personalizar el tono y el contenido.",
-        )
-        st.divider()
-
-        st.header("Parámetros de Generación")
-        st.subheader("🧠 Motor de Generación (LLM)")
+        
         llm_options = [
             "Gemini (Nube, Prioritario)",
             "Groq (Nube, Rápido)",
             "Ollama (Local, Requiere setup)",
         ]
+        
+        st.header("💼 Información de la Empresa/Persona")
+        brand_bio = st.text_area(
+            "Datos de la empresa/persona:",
+            placeholder="Ej: Somos una agencia de marketing especializada en IA...",
+            help="Esta información se usará para personalizar el tono y el contenido.",
+        )
+        
+        st.header("🧠 Motor de generación (LLM)")
         llm_selection_display = st.selectbox(
             "Seleccionar Proveedor",
             options=llm_options,
@@ -83,22 +125,22 @@ def render_sidebar():
                 "⚠️ **ADVERTENCIA:** Ollama requiere un servidor local en el puerto "
                 "11434 con el modelo necesario descargado."
             )
-
-        st.divider()
+            
+        st.header("🌐 Idiomas")
         selected_language = st.selectbox(
-            "🌐 Idioma de Generación",
+            "Idioma a usar para la generación",
             options=list(language_map.keys()),
             index=0,
             help="Idioma en el que se generará el contenido base y sus adaptaciones.",
         )
         target_language = language_map[selected_language]
-        st.divider()
-
+            
+    with st.sidebar:
         topic = st.text_input(
-            "Tema del Contenido:", "El uso de la IA en los automóviles modernos"
+            "Tema del Contenido:", "Agujeros negros"
         )
         audience = st.text_input(
-            "Audiencia Objetivo:", "Conductores mayores de 50 años"
+            "Audiencia Objetivo:", "Todo el público"
         )
 
         generate_twitter = st.checkbox("Adaptar a Twitter/X", value=False)
@@ -173,6 +215,8 @@ def generate_content(
         twitter_adaptor_chain = create_twitter_adaptor_chain(llm_selection)
         instagram_adaptor_chain = create_instagram_adaptor_chain(llm_selection)
         linkedin_adaptor_chain = create_linkedin_adaptor_chain(llm_selection)
+        science_post_chain = generate_science_post_chain(llm_selection)
+        
     except Exception as e:
         st.error(f"No se pudo inicializar un componente. Error: {e}")
         st.stop()
@@ -180,15 +224,34 @@ def generate_content(
     brand_bio = brand_bio.strip() if brand_bio.strip() else "No proporcionado."
 
     with st.spinner("Generando Artículo de Blog..."):
-        inputs = {
-            "topic": topic,
-            "audience": audience,
-            "target_language": target_language,
-            "brand_bio": brand_bio,
-        }
-        blog_content = blog_chain.invoke(inputs)
-        st.markdown("### 📝 Artículo de Blog (Contenido Base)")
-        st.markdown(blog_content)
+        st.info(f"Recuperando información de la base de datos científica...")
+        rag = ScienceRAG()
+        documents = rag.get_context(topic)
+        
+        if not documents:
+            st.warning("No se han encontrado documentos relevantes.")
+            
+            inputs = {
+                "topic": topic,
+                "audience": audience,
+                "target_language": target_language,
+                "brand_bio": brand_bio,
+            }
+            blog_content = blog_chain.invoke(inputs)
+            st.markdown("### 📝 Artículo de Blog")
+            st.markdown(blog_content)
+        else:
+            blog_content = science_post_chain.invoke(
+                {
+                    "documents": documents, 
+                    "topic": topic, 
+                    "target_language": target_language,
+                    "brand_bio": brand_bio                
+                }
+            )
+            st.markdown("### 📝 Artículo de Blog Científico")
+            st.markdown(blog_content)
+
     st.divider()
 
     if generate_twitter:
@@ -236,8 +299,8 @@ def generate_content(
             else:
                 path = generate_image_from_huggingface(img_prompt)
 
-            if path and not path.startswith("Error"):
-                st.image(path, caption=f"Portada generada vía {image_provider}")
+            if path:
+                st.image(path, caption=f"Portada generada vía {image_provider}", width='stretch')
             else:
                 st.error(f"No se pudo generar la imagen: {path}")
 

@@ -209,3 +209,4 @@ __marimo__/
 
 # Other
 generated_content.*
+chroma_db/
