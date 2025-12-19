@@ -26,6 +26,20 @@ The application provides a user-friendly Streamlit interface to interact with po
 *   **Flexible LLM Provider Selection:** Choose between various LLM providers (e.g., Gemini, Groq, Ollama) to suit your performance and deployment needs.
 *   **Interactive Streamlit UI:** A simple and intuitive web interface for easy content generation and management.
 
+### Thecnologies used
+* LangChain. The framework to connect to AI agents:
+    * Groq
+    * Gemini
+    * Ollama
+    * HuggingFace Hub
+* LangSmith. To trace the usage of the agents (requests and responses)
+* Replicate. To easy access to LLM models (only used for image generation)
+* ChomaDb. To store and reuse the downloaded papers:
+    * Arxiv
+    * PyPdf
+    * Sentence Transformers.
+* Streamlit. To put everything together in a web page.
+
 ## 🏁 Getting Started
 
 To get a copy of the project up and running on your local machine, follow these simple steps.
