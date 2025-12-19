@@ -128,7 +128,7 @@ SCIENCE_DIVULGATION_TEMPLATE = """
         * **Core Explanation**: Breakdown of the main findings from the provided context.
         * **Conclusion**: A forward-looking closing statement.
     5.  **Source Attribution**: Explicitly mention that the insights are synthesized from recent research papers found on arXiv.
-    6.  **Multilingual Output**: Write the entire final article in {target_language}.
+    6.  **Multilingual Output**: Write the entire final article in {target_language} with a minimum of 1500 words.
 
     SCIENTIFIC ARTICLE: [/INST]
     """
