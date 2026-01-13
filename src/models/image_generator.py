@@ -60,10 +60,11 @@ def generate_image_from_huggingface(prompt: str) -> Image.Image | None:
             generated_image = client.text_to_image(
                 model=HF_MODEL,
                 prompt=prompt,
-                num_inference_steps=8,
-                # negative_prompt="bad quality, low resolution, blurry, distorted, ugly",
-                width=640,
-                height=480
+                num_inference_steps=60,
+                negative_prompt="bad quality, low resolution, blurry, distorted, ugly",
+                guidance_scale=8.5,      # Add this for better prompt adherence
+                width=1024,
+                height=1024
             )
             
             log.info("✅ Image generated successfully (Hugging Face Hub).")
