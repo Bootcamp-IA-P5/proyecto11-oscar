@@ -303,21 +303,26 @@ def generate_content(
 
     if generate_image and image_provider:
         with st.spinner(f"Renderizando imagen con {image_provider}..."):
-            img_prompt = image_prompt_chain.invoke({"blog_content": blog_content})
-
             # Determine which provider to use
             image_result = None
             
-            if "Replicate" in image_provider:
-                path = generate_image_from_replicate(img_prompt)
-                if path:
-                    image_result = path
-            elif "Unsplash" in image_provider:
-                image_result = search_image_from_unsplash(img_prompt)
-            elif "Pexels" in image_provider:
-                image_result = search_image_from_pexels(img_prompt)
-            else:  # HuggingFace
-                image_result = generate_image_from_huggingface(img_prompt)
+            # For stock photo APIs, use the topic directly instead of generating an AI prompt
+            if "Unsplash" in image_provider or "Pexels" in image_provider:
+                # Use the topic for keyword-based search
+                search_query = topic
+                if "Unsplash" in image_provider:
+                    image_result = search_image_from_unsplash(search_query)
+                else:  # Pexels
+                    image_result = search_image_from_pexels(search_query)
+            else:
+                # For AI image generation, use the detailed prompt from LLM
+                img_prompt = image_prompt_chain.invoke({"blog_content": blog_content})
+                if "Replicate" in image_provider:
+                    path = generate_image_from_replicate(img_prompt)
+                    if path:
+                        image_result = path
+                else:  # HuggingFace
+                    image_result = generate_image_from_huggingface(img_prompt)
 
             if image_result:
                 st.image(image_result, caption=f"Imagen obtenida vía {image_provider}", use_container_width=True)

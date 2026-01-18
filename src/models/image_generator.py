@@ -7,6 +7,7 @@ includes a function to create a placeholder image as a fallback.
 """
 from PIL import Image
 import time
+import random
 from huggingface_hub import InferenceClient
 from huggingface_hub.utils import RepositoryNotFoundError
 import requests
@@ -23,6 +24,52 @@ from config.settings import (
 
 log_setup()
 log = Logger().log
+
+def translate_to_english_keywords(topic: str) -> str:
+    """
+    Translates Spanish topics to English keywords optimized for stock photo search.
+    
+    Args:
+        topic (str): The topic in Spanish or English.
+    
+    Returns:
+        str: English keywords suitable for Pexels/Unsplash search.
+    """
+    # Common Spanish to English translations for better photo results
+    translations = {
+        # Science/Space
+        'agujeros negros': 'black hole space galaxy',
+        'drones': 'drone aerial technology',
+        'inteligencia artificial': 'artificial intelligence technology',
+        'robótica': 'robot robotics technology',
+        'cambio climático': 'climate change environment',
+        'energía solar': 'solar energy panels',
+        'océanos': 'ocean sea water',
+        'montañas': 'mountain landscape nature',
+        'tecnología': 'technology innovation',
+        'ciencia': 'science laboratory research',
+        'medicina': 'medicine healthcare hospital',
+        'astronomía': 'astronomy space stars',
+        'física': 'physics science',
+        'química': 'chemistry laboratory',
+        'biología': 'biology nature',
+        'computación': 'computer technology',
+        # Add more as needed
+    }
+    
+    topic_lower = topic.lower().strip()
+    
+    # Check for exact matches
+    if topic_lower in translations:
+        return translations[topic_lower]
+    
+    # Check for partial matches
+    for spanish, english in translations.items():
+        if spanish in topic_lower:
+            return english
+    
+    # If no translation found, return cleaned topic
+    return topic_lower.replace('í', 'i').replace('á', 'a').replace('é', 'e').replace('ó', 'o').replace('ú', 'u')
 
 def extract_keywords(prompt: str, max_words: int = 3) -> str:
     """
@@ -70,7 +117,7 @@ def extract_keywords(prompt: str, max_words: int = 3) -> str:
     }
     
     # Clean and tokenize - remove all punctuation and special characters
-    for char in ',.:;!?()[]{}"\\'`<>/-=+*&%$#@~|\\\\^':
+    for char in ',.:;!?()[]{}\'"\'`<>/-=+*&%$#@~|\\^':
         prompt_clean = prompt_clean.replace(char, ' ')
     
     words = prompt_clean.split()
@@ -232,8 +279,8 @@ def search_image_from_unsplash(prompt: str) -> Image.Image | None:
         return None
     
     try:
-        # Extract relevant keywords from the prompt
-        keywords = extract_keywords(prompt, max_words=3)
+        # Translate topic to English keywords optimized for photo search
+        keywords = translate_to_english_keywords(prompt)
         log.info(f"🔍 Searching Unsplash for: '{keywords}'")
         
         # Use Unsplash API directly for better reliability
@@ -242,15 +289,18 @@ def search_image_from_unsplash(prompt: str) -> Image.Image | None:
         params = {
             "query": keywords,
             "orientation": "landscape",
-            "content_filter": "high"
+            "content_filter": "high",
+            "count": 1  # Force randomness
         }
         
         response = requests.get(url, headers=headers, params=params, timeout=30)
         
         if response.status_code == 200:
             data = response.json()
-            image_url = data['urls']['regular']  # High quality version
-            photographer = data['user']['name']
+            # Unsplash returns a list with count=1
+            photo_data = data[0] if isinstance(data, list) else data
+            image_url = photo_data['urls']['regular']  # High quality version
+            photographer = photo_data['user']['name']
             
             # Download the image
             img_response = requests.get(image_url, timeout=30)
@@ -307,16 +357,19 @@ def search_image_from_pexels(prompt: str) -> Image.Image | None:
         return None
     
     try:
-        # Extract relevant keywords from the prompt with focused search
-        keywords = extract_keywords(prompt, max_words=3)
+        # Translate topic to English keywords optimized for photo search
+        keywords = translate_to_english_keywords(prompt)
         log.info(f"🔍 Searching Pexels for: '{keywords}'")
         
         # Pexels API endpoint
         url = "https://api.pexels.com/v1/search"
         headers = {"Authorization": PEXELS_API_KEY}
+        # Get a random page from the first 5 pages for variety
+        random_page = random.randint(1, 5)
         params = {
             "query": keywords,
-            "per_page": 1,  # Get only the most relevant result
+            "per_page": 1,
+            "page": random_page,
             "orientation": "landscape",
             "size": "large"
         }
