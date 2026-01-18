@@ -11,13 +11,54 @@ from huggingface_hub import InferenceClient
 from huggingface_hub.utils import RepositoryNotFoundError
 import requests
 import replicate
+from pyunsplash import PyUnsplash
+from io import BytesIO
 
 from src.core.logger.logger import Logger
 from src.core.logger.log_setup import log_setup 
-from config.settings import HF_TOKEN, HF_MODEL, REPLICATE_API_TOKEN, REPLICATE_MODEL
+from config.settings import (
+    HF_TOKEN, HF_MODEL, 
+    REPLICATE_API_TOKEN, REPLICATE_MODEL,
+    PEXELS_API_KEY, UNSPLASH_ACCESS_KEY
+)
 
 log_setup()
 log = Logger().log
+
+def extract_keywords(prompt: str, max_words: int = 3) -> str:
+    """
+    Extracts the most relevant keywords from an image prompt.
+    
+    This function removes common words and extracts the core subject matter
+    from a detailed image generation prompt, making it suitable for stock
+    photo search APIs like Pexels and Unsplash.
+    
+    Args:
+        prompt (str): The detailed image generation prompt.
+        max_words (int): Maximum number of keywords to extract (default: 3).
+    
+    Returns:
+        str: Space-separated keywords extracted from the prompt.
+    
+    Example:
+        >>> extract_keywords("A futuristic drone flying over a cityscape")
+        "drone cityscape futuristic"
+    """
+    # Common words to filter out
+    stop_words = {
+        'a', 'an', 'the', 'with', 'in', 'on', 'at', 'to', 'for', 'of', 'and', 'or',
+        'photorealistic', 'cinematic', 'lighting', 'professional', 'photography',
+        '8k', 'high', 'resolution', 'detailed', 'image', 'picture', 'photo'
+    }
+    
+    # Clean and tokenize
+    words = prompt.lower().replace(',', ' ').replace('.', ' ').split()
+    
+    # Filter and extract important words
+    keywords = [w for w in words if w not in stop_words and len(w) > 3]
+    
+    # Return top keywords
+    return ' '.join(keywords[:max_words])
 
 def create_placeholder_image(text_input: str) -> Image.Image:
     """
@@ -132,4 +173,125 @@ def generate_image_from_replicate(prompt: str) -> str | None:
 
     except Exception as e:
         log.error(f"Error con Replicate: {e}")
+        return None
+
+def search_image_from_unsplash(prompt: str) -> Image.Image | None:
+    """
+    Searches for a high-quality stock photo on Unsplash based on the prompt.
+    
+    This function extracts keywords from the AI image generation prompt and
+    searches Unsplash's vast library of free, high-quality photos. It returns
+    the most relevant image as a PIL Image object.
+    
+    Args:
+        prompt (str): The text prompt describing the desired image.
+    
+    Returns:
+        Image.Image | None: A PIL Image object of the found photo, or None if
+                           the search fails or no results are found.
+    
+    Note:
+        Requires UNSPLASH_ACCESS_KEY to be configured in environment variables.
+    """
+    if not UNSPLASH_ACCESS_KEY:
+        log.error("❌ UNSPLASH_ACCESS_KEY not configured")
+        return None
+    
+    try:
+        # Extract relevant keywords from the prompt
+        keywords = extract_keywords(prompt)
+        log.info(f"🔍 Searching Unsplash for: '{keywords}'")
+        
+        # Initialize Unsplash client
+        pu = PyUnsplash(api_key=UNSPLASH_ACCESS_KEY)
+        
+        # Search for photos
+        search = pu.photos(type_='random', count=1, featured=True, query=keywords)
+        
+        # Get the first result
+        photo = search.entries[0]
+        image_url = photo.link_download
+        
+        # Download the image
+        response = requests.get(image_url, timeout=30)
+        if response.status_code == 200:
+            image = Image.open(BytesIO(response.content))
+            log.info(f"✅ Image found on Unsplash (by {photo.body.get('user', {}).get('name', 'Unknown')})")
+            return image
+        else:
+            log.error(f"❌ Failed to download image from Unsplash: {response.status_code}")
+            return None
+            
+    except IndexError:
+        log.warning(f"⚠️ No results found on Unsplash for '{keywords}'")
+        return None
+    except Exception as e:
+        log.error(f"❌ Error searching Unsplash: {e}")
+        return None
+
+def search_image_from_pexels(prompt: str) -> Image.Image | None:
+    """
+    Searches for a high-quality stock photo on Pexels based on the prompt.
+    
+    This function extracts keywords from the AI image generation prompt and
+    searches Pexels' collection of free stock photos. It returns the most
+    relevant image as a PIL Image object.
+    
+    Args:
+        prompt (str): The text prompt describing the desired image.
+    
+    Returns:
+        Image.Image | None: A PIL Image object of the found photo, or None if
+                           the search fails or no results are found.
+    
+    Note:
+        Requires PEXELS_API_KEY to be configured in environment variables.
+    """
+    if not PEXELS_API_KEY:
+        log.error("❌ PEXELS_API_KEY not configured")
+        return None
+    
+    try:
+        # Extract relevant keywords from the prompt
+        keywords = extract_keywords(prompt)
+        log.info(f"🔍 Searching Pexels for: '{keywords}'")
+        
+        # Pexels API endpoint
+        url = "https://api.pexels.com/v1/search"
+        headers = {"Authorization": PEXELS_API_KEY}
+        params = {
+            "query": keywords,
+            "per_page": 1,
+            "orientation": "landscape"
+        }
+        
+        # Search for photos
+        response = requests.get(url, headers=headers, params=params, timeout=30)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            if data.get('photos') and len(data['photos']) > 0:
+                photo = data['photos'][0]
+                image_url = photo['src']['large2x']  # High quality version
+                photographer = photo['photographer']
+                
+                # Download the image
+                img_response = requests.get(image_url, timeout=30)
+                if img_response.status_code == 200:
+                    image = Image.open(BytesIO(img_response.content))
+                    log.info(f"✅ Image found on Pexels (by {photographer})")
+                    return image
+                else:
+                    log.error(f"❌ Failed to download image from Pexels: {img_response.status_code}")
+                    return None
+            else:
+                log.warning(f"⚠️ No results found on Pexels for '{keywords}'")
+                return None
+        else:
+            log.error(f"❌ Pexels API error: {response.status_code}")
+            return None
+            
+    except Exception as e:
+        log.error(f"❌ Error searching Pexels: {e}")
         return None

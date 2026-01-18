@@ -18,3 +18,4 @@ python-dotenv==1.2.1
 replicate==1.0.7
 sentence-transformers==5.2.0
 streamlit==1.52.2
+pyunsplash==1.0.0rc1
