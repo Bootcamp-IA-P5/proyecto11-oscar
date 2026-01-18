@@ -24,7 +24,7 @@ from config.settings import (
 log_setup()
 log = Logger().log
 
-def extract_keywords(prompt: str, max_words: int = 5) -> str:
+def extract_keywords(prompt: str, max_words: int = 3) -> str:
     """
     Extracts the most relevant keywords from an image prompt.
     
@@ -34,41 +34,65 @@ def extract_keywords(prompt: str, max_words: int = 5) -> str:
     
     Args:
         prompt (str): The detailed image generation prompt.
-        max_words (int): Maximum number of keywords to extract (default: 5).
+        max_words (int): Maximum number of keywords to extract (default: 3).
     
     Returns:
         str: Space-separated keywords extracted from the prompt.
     
     Example:
-        >>> extract_keywords("A futuristic drone flying over a cityscape")
-        "futuristic drone flying cityscape"
+        >>> extract_keywords("A modern drone hovering above a cityscape")
+        "drone hovering cityscape"
     """
+    # Clean the prompt - remove any instruction markers and template text
+    prompt_clean = prompt.lower()
+    
+    # Remove common instruction patterns from LLM prompts
+    markers_to_remove = [
+        '[inst]', '[/inst]', '<<sys>>', '<</sys>>', 
+        'task:', 'image prompt:', 'prompt:', 'create', 'generate',
+        'english only', 'mandatory', 'output', 'here'
+    ]
+    for marker in markers_to_remove:
+        prompt_clean = prompt_clean.replace(marker, ' ')
+    
     # Extended stop words to filter out
     stop_words = {
         'a', 'an', 'the', 'with', 'in', 'on', 'at', 'to', 'for', 'of', 'and', 'or', 'is', 'are',
-        'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did',
-        'photorealistic', 'cinematic', 'lighting', 'professional', 'photography',
-        '8k', '4k', 'high', 'resolution', 'detailed', 'image', 'picture', 'photo',
-        'quality', 'render', 'shot', 'view', 'scene', 'background', 'style'
+        'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will',
+        'would', 'could', 'should', 'can', 'may', 'might', 'must', 'shall',
+        'this', 'that', 'these', 'those', 'here', 'there', 'where', 'when', 'what', 'which', 'your',
+        'photorealistic', 'cinematic', 'lighting', 'professional', 'photography', 'photographer',
+        '8k', '4k', 'uhd', 'hd', 'high', 'resolution', 'detailed', 'image', 'picture', 'photo',
+        'quality', 'render', 'rendered', 'shot', 'view', 'scene', 'background', 'style', 'aesthetic',
+        'beautiful', 'stunning', 'amazing', 'incredible', 'highly', 'ultra', 'hyper', 'super',
+        'realistic', 'real', 'life', 'lifelike', 'must', 'exclusively', 'only', 'text', 'words',
+        'minimize', 'maximum', 'include', 'not'
     }
     
-    # Clean and tokenize
-    words = prompt.lower()
-    # Remove punctuation
-    for char in ',.:;!?()[]{}"\'\'`':
-        words = words.replace(char, ' ')
-    words = words.split()
+    # Clean and tokenize - remove all punctuation and special characters
+    for char in ',.:;!?()[]{}"\\'`<>/-=+*&%$#@~|\\\\^':
+        prompt_clean = prompt_clean.replace(char, ' ')
     
-    # Filter and extract important words (nouns, adjectives, verbs)
-    keywords = [w for w in words if w not in stop_words and len(w) > 3]
+    words = prompt_clean.split()
+    
+    # Filter: only alphabetic words, 4+ chars, not in stop words
+    keywords = [w for w in words if w not in stop_words and len(w) >= 4 and w.isalpha()]
     
     # If we got too few keywords, be less restrictive
     if len(keywords) < 2:
-        keywords = [w for w in words if w not in stop_words and len(w) > 2]
+        keywords = [w for w in words if w not in stop_words and len(w) > 2 and w.isalpha()]
     
-    # Return top keywords
-    result = ' '.join(keywords[:max_words])
-    return result if result else 'abstract art'  # Fallback
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_keywords = []
+    for word in keywords:
+        if word not in seen:
+            seen.add(word)
+            unique_keywords.append(word)
+    
+    # Return top keywords - fewer is better for precision
+    result = ' '.join(unique_keywords[:max_words])
+    return result if result else 'technology modern'  # Better fallback
 
 def create_placeholder_image(text_input: str) -> Image.Image:
     """
@@ -209,7 +233,7 @@ def search_image_from_unsplash(prompt: str) -> Image.Image | None:
     
     try:
         # Extract relevant keywords from the prompt
-        keywords = extract_keywords(prompt, max_words=5)
+        keywords = extract_keywords(prompt, max_words=3)
         log.info(f"🔍 Searching Unsplash for: '{keywords}'")
         
         # Use Unsplash API directly for better reliability
@@ -283,8 +307,8 @@ def search_image_from_pexels(prompt: str) -> Image.Image | None:
         return None
     
     try:
-        # Extract relevant keywords from the prompt with more words for better results
-        keywords = extract_keywords(prompt, max_words=5)
+        # Extract relevant keywords from the prompt with focused search
+        keywords = extract_keywords(prompt, max_words=3)
         log.info(f"🔍 Searching Pexels for: '{keywords}'")
         
         # Pexels API endpoint
@@ -292,7 +316,7 @@ def search_image_from_pexels(prompt: str) -> Image.Image | None:
         headers = {"Authorization": PEXELS_API_KEY}
         params = {
             "query": keywords,
-            "per_page": 5,  # Get top 5 results for better relevance
+            "per_page": 1,  # Get only the most relevant result
             "orientation": "landscape",
             "size": "large"
         }
@@ -304,12 +328,10 @@ def search_image_from_pexels(prompt: str) -> Image.Image | None:
             data = response.json()
             
             if data.get('photos') and len(data['photos']) > 0:
-                # Get the first (most relevant) result
+                # Get the most relevant result
                 photo = data['photos'][0]
                 image_url = photo['src']['large2x']  # High quality version
                 photographer = photo['photographer']
-                
-                log.info(f"📊 Found {len(data['photos'])} results on Pexels, using top match")
                 
                 # Download the image
                 img_response = requests.get(image_url, timeout=30)
@@ -322,11 +344,11 @@ def search_image_from_pexels(prompt: str) -> Image.Image | None:
                     return None
             else:
                 log.warning(f"⚠️ No results found on Pexels for '{keywords}'")
-                # Try with fewer keywords as fallback
-                if len(keywords.split()) > 2:
-                    log.info("🔄 Retrying with fewer keywords...")
-                    simple_keywords = ' '.join(keywords.split()[:2])
-                    params["query"] = simple_keywords
+                # Try with just the first keyword as fallback
+                if ' ' in keywords:
+                    log.info("🔄 Retrying with first keyword only...")
+                    simple_keyword = keywords.split()[0]
+                    params["query"] = simple_keyword
                     response = requests.get(url, headers=headers, params=params, timeout=30)
                     if response.status_code == 200:
                         data = response.json()
@@ -336,7 +358,7 @@ def search_image_from_pexels(prompt: str) -> Image.Image | None:
                             img_response = requests.get(image_url, timeout=30)
                             if img_response.status_code == 200:
                                 image = Image.open(BytesIO(img_response.content))
-                                log.info(f"✅ Image found on Pexels with simpler search: '{simple_keywords}'")
+                                log.info(f"✅ Image found on Pexels with simpler search: '{simple_keyword}'")
                                 return image
                 return None
         elif response.status_code == 403:
