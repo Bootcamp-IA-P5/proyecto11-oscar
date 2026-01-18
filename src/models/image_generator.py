@@ -11,7 +11,6 @@ from huggingface_hub import InferenceClient
 from huggingface_hub.utils import RepositoryNotFoundError
 import requests
 import replicate
-from pyunsplash import PyUnsplash
 from io import BytesIO
 
 from src.core.logger.logger import Logger
@@ -25,7 +24,7 @@ from config.settings import (
 log_setup()
 log = Logger().log
 
-def extract_keywords(prompt: str, max_words: int = 3) -> str:
+def extract_keywords(prompt: str, max_words: int = 5) -> str:
     """
     Extracts the most relevant keywords from an image prompt.
     
@@ -35,30 +34,41 @@ def extract_keywords(prompt: str, max_words: int = 3) -> str:
     
     Args:
         prompt (str): The detailed image generation prompt.
-        max_words (int): Maximum number of keywords to extract (default: 3).
+        max_words (int): Maximum number of keywords to extract (default: 5).
     
     Returns:
         str: Space-separated keywords extracted from the prompt.
     
     Example:
         >>> extract_keywords("A futuristic drone flying over a cityscape")
-        "drone cityscape futuristic"
+        "futuristic drone flying cityscape"
     """
-    # Common words to filter out
+    # Extended stop words to filter out
     stop_words = {
-        'a', 'an', 'the', 'with', 'in', 'on', 'at', 'to', 'for', 'of', 'and', 'or',
+        'a', 'an', 'the', 'with', 'in', 'on', 'at', 'to', 'for', 'of', 'and', 'or', 'is', 'are',
+        'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did',
         'photorealistic', 'cinematic', 'lighting', 'professional', 'photography',
-        '8k', 'high', 'resolution', 'detailed', 'image', 'picture', 'photo'
+        '8k', '4k', 'high', 'resolution', 'detailed', 'image', 'picture', 'photo',
+        'quality', 'render', 'shot', 'view', 'scene', 'background', 'style'
     }
     
     # Clean and tokenize
-    words = prompt.lower().replace(',', ' ').replace('.', ' ').split()
+    words = prompt.lower()
+    # Remove punctuation
+    for char in ',.:;!?()[]{}"\'\'`':
+        words = words.replace(char, ' ')
+    words = words.split()
     
-    # Filter and extract important words
+    # Filter and extract important words (nouns, adjectives, verbs)
     keywords = [w for w in words if w not in stop_words and len(w) > 3]
     
+    # If we got too few keywords, be less restrictive
+    if len(keywords) < 2:
+        keywords = [w for w in words if w not in stop_words and len(w) > 2]
+    
     # Return top keywords
-    return ' '.join(keywords[:max_words])
+    result = ' '.join(keywords[:max_words])
+    return result if result else 'abstract art'  # Fallback
 
 def create_placeholder_image(text_input: str) -> Image.Image:
     """
@@ -199,34 +209,55 @@ def search_image_from_unsplash(prompt: str) -> Image.Image | None:
     
     try:
         # Extract relevant keywords from the prompt
-        keywords = extract_keywords(prompt)
+        keywords = extract_keywords(prompt, max_words=5)
         log.info(f"🔍 Searching Unsplash for: '{keywords}'")
         
-        # Initialize Unsplash client
-        pu = PyUnsplash(api_key=UNSPLASH_ACCESS_KEY)
+        # Use Unsplash API directly for better reliability
+        url = "https://api.unsplash.com/photos/random"
+        headers = {"Authorization": f"Client-ID {UNSPLASH_ACCESS_KEY}"}
+        params = {
+            "query": keywords,
+            "orientation": "landscape",
+            "content_filter": "high"
+        }
         
-        # Search for photos
-        search = pu.photos(type_='random', count=1, featured=True, query=keywords)
+        response = requests.get(url, headers=headers, params=params, timeout=30)
         
-        # Get the first result
-        photo = search.entries[0]
-        image_url = photo.link_download
-        
-        # Download the image
-        response = requests.get(image_url, timeout=30)
         if response.status_code == 200:
-            image = Image.open(BytesIO(response.content))
-            log.info(f"✅ Image found on Unsplash (by {photo.body.get('user', {}).get('name', 'Unknown')})")
-            return image
+            data = response.json()
+            image_url = data['urls']['regular']  # High quality version
+            photographer = data['user']['name']
+            
+            # Download the image
+            img_response = requests.get(image_url, timeout=30)
+            if img_response.status_code == 200:
+                image = Image.open(BytesIO(img_response.content))
+                log.info(f"✅ Image found on Unsplash (by {photographer})")
+                return image
+            else:
+                log.error(f"❌ Failed to download image from Unsplash: {img_response.status_code}")
+                return None
+        elif response.status_code == 404:
+            log.warning(f"⚠️ No results found on Unsplash for '{keywords}'")
+            return None
+        elif response.status_code == 403:
+            log.error(f"❌ Unsplash API: Access forbidden. Check your API key.")
+            return None
+        elif response.status_code == 401:
+            log.error(f"❌ Unsplash API: Unauthorized. Invalid API key.")
+            return None
         else:
-            log.error(f"❌ Failed to download image from Unsplash: {response.status_code}")
+            log.error(f"❌ Unsplash API error: {response.status_code} - {response.text}")
             return None
             
-    except IndexError:
-        log.warning(f"⚠️ No results found on Unsplash for '{keywords}'")
+    except requests.exceptions.Timeout:
+        log.error("❌ Unsplash request timed out")
+        return None
+    except requests.exceptions.RequestException as e:
+        log.error(f"❌ Network error with Unsplash: {e}")
         return None
     except Exception as e:
-        log.error(f"❌ Error searching Unsplash: {e}")
+        log.error(f"❌ Unexpected error searching Unsplash: {type(e).__name__}: {e}")
         return None
 
 def search_image_from_pexels(prompt: str) -> Image.Image | None:
@@ -252,8 +283,8 @@ def search_image_from_pexels(prompt: str) -> Image.Image | None:
         return None
     
     try:
-        # Extract relevant keywords from the prompt
-        keywords = extract_keywords(prompt)
+        # Extract relevant keywords from the prompt with more words for better results
+        keywords = extract_keywords(prompt, max_words=5)
         log.info(f"🔍 Searching Pexels for: '{keywords}'")
         
         # Pexels API endpoint
@@ -261,8 +292,9 @@ def search_image_from_pexels(prompt: str) -> Image.Image | None:
         headers = {"Authorization": PEXELS_API_KEY}
         params = {
             "query": keywords,
-            "per_page": 1,
-            "orientation": "landscape"
+            "per_page": 5,  # Get top 5 results for better relevance
+            "orientation": "landscape",
+            "size": "large"
         }
         
         # Search for photos
@@ -272,9 +304,12 @@ def search_image_from_pexels(prompt: str) -> Image.Image | None:
             data = response.json()
             
             if data.get('photos') and len(data['photos']) > 0:
+                # Get the first (most relevant) result
                 photo = data['photos'][0]
                 image_url = photo['src']['large2x']  # High quality version
                 photographer = photo['photographer']
+                
+                log.info(f"📊 Found {len(data['photos'])} results on Pexels, using top match")
                 
                 # Download the image
                 img_response = requests.get(image_url, timeout=30)
@@ -287,11 +322,39 @@ def search_image_from_pexels(prompt: str) -> Image.Image | None:
                     return None
             else:
                 log.warning(f"⚠️ No results found on Pexels for '{keywords}'")
+                # Try with fewer keywords as fallback
+                if len(keywords.split()) > 2:
+                    log.info("🔄 Retrying with fewer keywords...")
+                    simple_keywords = ' '.join(keywords.split()[:2])
+                    params["query"] = simple_keywords
+                    response = requests.get(url, headers=headers, params=params, timeout=30)
+                    if response.status_code == 200:
+                        data = response.json()
+                        if data.get('photos') and len(data['photos']) > 0:
+                            photo = data['photos'][0]
+                            image_url = photo['src']['large2x']
+                            img_response = requests.get(image_url, timeout=30)
+                            if img_response.status_code == 200:
+                                image = Image.open(BytesIO(img_response.content))
+                                log.info(f"✅ Image found on Pexels with simpler search: '{simple_keywords}'")
+                                return image
                 return None
+        elif response.status_code == 403:
+            log.error(f"❌ Pexels API: Access forbidden. Check your API key.")
+            return None
+        elif response.status_code == 429:
+            log.error(f"❌ Pexels API: Rate limit exceeded. Try again later.")
+            return None
         else:
-            log.error(f"❌ Pexels API error: {response.status_code}")
+            log.error(f"❌ Pexels API error: {response.status_code} - {response.text}")
             return None
             
+    except requests.exceptions.Timeout:
+        log.error("❌ Pexels request timed out")
+        return None
+    except requests.exceptions.RequestException as e:
+        log.error(f"❌ Network error with Pexels: {e}")
+        return None
     except Exception as e:
-        log.error(f"❌ Error searching Pexels: {e}")
+        log.error(f"❌ Unexpected error searching Pexels: {type(e).__name__}: {e}")
         return None
