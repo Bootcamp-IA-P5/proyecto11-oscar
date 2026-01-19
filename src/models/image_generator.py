@@ -7,17 +7,139 @@ includes a function to create a placeholder image as a fallback.
 """
 from PIL import Image
 import time
+import random
 from huggingface_hub import InferenceClient
 from huggingface_hub.utils import RepositoryNotFoundError
 import requests
 import replicate
+from io import BytesIO
 
 from src.core.logger.logger import Logger
 from src.core.logger.log_setup import log_setup 
-from config.settings import HF_TOKEN, HF_MODEL, REPLICATE_API_TOKEN, REPLICATE_MODEL
+from config.settings import (
+    HF_TOKEN, HF_MODEL, 
+    REPLICATE_API_TOKEN, REPLICATE_MODEL,
+    PEXELS_API_KEY, UNSPLASH_ACCESS_KEY
+)
 
 log_setup()
 log = Logger().log
+
+def translate_to_english_keywords(topic: str) -> str:
+    """
+    Translates Spanish topics to English keywords optimized for stock photo search.
+    
+    Args:
+        topic (str): The topic in Spanish or English.
+    
+    Returns:
+        str: English keywords suitable for Pexels/Unsplash search.
+    """
+    # Common Spanish to English translations for better photo results
+    translations = {
+        # Science/Space
+        'agujeros negros': 'black hole space galaxy',
+        'drones': 'drone aerial technology',
+        'inteligencia artificial': 'artificial intelligence technology',
+        'robótica': 'robot robotics technology',
+        'cambio climático': 'climate change environment',
+        'energía solar': 'solar energy panels',
+        'océanos': 'ocean sea water',
+        'montañas': 'mountain landscape nature',
+        'tecnología': 'technology innovation',
+        'ciencia': 'science laboratory research',
+        'medicina': 'medicine healthcare hospital',
+        'astronomía': 'astronomy space stars',
+        'física': 'physics science',
+        'química': 'chemistry laboratory',
+        'biología': 'biology nature',
+        'computación': 'computer technology',
+        # Add more as needed
+    }
+    
+    topic_lower = topic.lower().strip()
+    
+    # Check for exact matches
+    if topic_lower in translations:
+        return translations[topic_lower]
+    
+    # Check for partial matches
+    for spanish, english in translations.items():
+        if spanish in topic_lower:
+            return english
+    
+    # If no translation found, return cleaned topic
+    return topic_lower.replace('í', 'i').replace('á', 'a').replace('é', 'e').replace('ó', 'o').replace('ú', 'u')
+
+def extract_keywords(prompt: str, max_words: int = 3) -> str:
+    """
+    Extracts the most relevant keywords from an image prompt.
+    
+    This function removes common words and extracts the core subject matter
+    from a detailed image generation prompt, making it suitable for stock
+    photo search APIs like Pexels and Unsplash.
+    
+    Args:
+        prompt (str): The detailed image generation prompt.
+        max_words (int): Maximum number of keywords to extract (default: 3).
+    
+    Returns:
+        str: Space-separated keywords extracted from the prompt.
+    
+    Example:
+        >>> extract_keywords("A modern drone hovering above a cityscape")
+        "drone hovering cityscape"
+    """
+    # Clean the prompt - remove any instruction markers and template text
+    prompt_clean = prompt.lower()
+    
+    # Remove common instruction patterns from LLM prompts
+    markers_to_remove = [
+        '[inst]', '[/inst]', '<<sys>>', '<</sys>>', 
+        'task:', 'image prompt:', 'prompt:', 'create', 'generate',
+        'english only', 'mandatory', 'output', 'here'
+    ]
+    for marker in markers_to_remove:
+        prompt_clean = prompt_clean.replace(marker, ' ')
+    
+    # Extended stop words to filter out
+    stop_words = {
+        'a', 'an', 'the', 'with', 'in', 'on', 'at', 'to', 'for', 'of', 'and', 'or', 'is', 'are',
+        'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will',
+        'would', 'could', 'should', 'can', 'may', 'might', 'must', 'shall',
+        'this', 'that', 'these', 'those', 'here', 'there', 'where', 'when', 'what', 'which', 'your',
+        'photorealistic', 'cinematic', 'lighting', 'professional', 'photography', 'photographer',
+        '8k', '4k', 'uhd', 'hd', 'high', 'resolution', 'detailed', 'image', 'picture', 'photo',
+        'quality', 'render', 'rendered', 'shot', 'view', 'scene', 'background', 'style', 'aesthetic',
+        'beautiful', 'stunning', 'amazing', 'incredible', 'highly', 'ultra', 'hyper', 'super',
+        'realistic', 'real', 'life', 'lifelike', 'must', 'exclusively', 'only', 'text', 'words',
+        'minimize', 'maximum', 'include', 'not'
+    }
+    
+    # Clean and tokenize - remove all punctuation and special characters
+    for char in ',.:;!?()[]{}\'"\'`<>/-=+*&%$#@~|\\^':
+        prompt_clean = prompt_clean.replace(char, ' ')
+    
+    words = prompt_clean.split()
+    
+    # Filter: only alphabetic words, 4+ chars, not in stop words
+    keywords = [w for w in words if w not in stop_words and len(w) >= 4 and w.isalpha()]
+    
+    # If we got too few keywords, be less restrictive
+    if len(keywords) < 2:
+        keywords = [w for w in words if w not in stop_words and len(w) > 2 and w.isalpha()]
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_keywords = []
+    for word in keywords:
+        if word not in seen:
+            seen.add(word)
+            unique_keywords.append(word)
+    
+    # Return top keywords - fewer is better for precision
+    result = ' '.join(unique_keywords[:max_words])
+    return result if result else 'technology modern'  # Better fallback
 
 def create_placeholder_image(text_input: str) -> Image.Image:
     """
@@ -132,4 +254,182 @@ def generate_image_from_replicate(prompt: str) -> str | None:
 
     except Exception as e:
         log.error(f"Error con Replicate: {e}")
+        return None
+
+def search_image_from_unsplash(prompt: str) -> Image.Image | None:
+    """
+    Searches for a high-quality stock photo on Unsplash based on the prompt.
+    
+    This function extracts keywords from the AI image generation prompt and
+    searches Unsplash's vast library of free, high-quality photos. It returns
+    the most relevant image as a PIL Image object.
+    
+    Args:
+        prompt (str): The text prompt describing the desired image.
+    
+    Returns:
+        Image.Image | None: A PIL Image object of the found photo, or None if
+                           the search fails or no results are found.
+    
+    Note:
+        Requires UNSPLASH_ACCESS_KEY to be configured in environment variables.
+    """
+    if not UNSPLASH_ACCESS_KEY:
+        log.error("❌ UNSPLASH_ACCESS_KEY not configured")
+        return None
+    
+    try:
+        # Translate topic to English keywords optimized for photo search
+        keywords = translate_to_english_keywords(prompt)
+        log.info(f"🔍 Searching Unsplash for: '{keywords}'")
+        
+        # Use Unsplash API directly for better reliability
+        url = "https://api.unsplash.com/photos/random"
+        headers = {"Authorization": f"Client-ID {UNSPLASH_ACCESS_KEY}"}
+        params = {
+            "query": keywords,
+            "orientation": "landscape",
+            "content_filter": "high",
+            "count": 1  # Force randomness
+        }
+        
+        response = requests.get(url, headers=headers, params=params, timeout=30)
+        
+        if response.status_code == 200:
+            data = response.json()
+            # Unsplash returns a list with count=1
+            photo_data = data[0] if isinstance(data, list) else data
+            image_url = photo_data['urls']['regular']  # High quality version
+            photographer = photo_data['user']['name']
+            
+            # Download the image
+            img_response = requests.get(image_url, timeout=30)
+            if img_response.status_code == 200:
+                image = Image.open(BytesIO(img_response.content))
+                log.info(f"✅ Image found on Unsplash (by {photographer})")
+                return image
+            else:
+                log.error(f"❌ Failed to download image from Unsplash: {img_response.status_code}")
+                return None
+        elif response.status_code == 404:
+            log.warning(f"⚠️ No results found on Unsplash for '{keywords}'")
+            return None
+        elif response.status_code == 403:
+            log.error(f"❌ Unsplash API: Access forbidden. Check your API key.")
+            return None
+        elif response.status_code == 401:
+            log.error(f"❌ Unsplash API: Unauthorized. Invalid API key.")
+            return None
+        else:
+            log.error(f"❌ Unsplash API error: {response.status_code} - {response.text}")
+            return None
+            
+    except requests.exceptions.Timeout:
+        log.error("❌ Unsplash request timed out")
+        return None
+    except requests.exceptions.RequestException as e:
+        log.error(f"❌ Network error with Unsplash: {e}")
+        return None
+    except Exception as e:
+        log.error(f"❌ Unexpected error searching Unsplash: {type(e).__name__}: {e}")
+        return None
+
+def search_image_from_pexels(prompt: str) -> Image.Image | None:
+    """
+    Searches for a high-quality stock photo on Pexels based on the prompt.
+    
+    This function extracts keywords from the AI image generation prompt and
+    searches Pexels' collection of free stock photos. It returns the most
+    relevant image as a PIL Image object.
+    
+    Args:
+        prompt (str): The text prompt describing the desired image.
+    
+    Returns:
+        Image.Image | None: A PIL Image object of the found photo, or None if
+                           the search fails or no results are found.
+    
+    Note:
+        Requires PEXELS_API_KEY to be configured in environment variables.
+    """
+    if not PEXELS_API_KEY:
+        log.error("❌ PEXELS_API_KEY not configured")
+        return None
+    
+    try:
+        # Translate topic to English keywords optimized for photo search
+        keywords = translate_to_english_keywords(prompt)
+        log.info(f"🔍 Searching Pexels for: '{keywords}'")
+        
+        # Pexels API endpoint
+        url = "https://api.pexels.com/v1/search"
+        headers = {"Authorization": PEXELS_API_KEY}
+        # Get a random page from the first 5 pages for variety
+        random_page = random.randint(1, 5)
+        params = {
+            "query": keywords,
+            "per_page": 1,
+            "page": random_page,
+            "orientation": "landscape",
+            "size": "large"
+        }
+        
+        # Search for photos
+        response = requests.get(url, headers=headers, params=params, timeout=30)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            if data.get('photos') and len(data['photos']) > 0:
+                # Get the most relevant result
+                photo = data['photos'][0]
+                image_url = photo['src']['large2x']  # High quality version
+                photographer = photo['photographer']
+                
+                # Download the image
+                img_response = requests.get(image_url, timeout=30)
+                if img_response.status_code == 200:
+                    image = Image.open(BytesIO(img_response.content))
+                    log.info(f"✅ Image found on Pexels (by {photographer})")
+                    return image
+                else:
+                    log.error(f"❌ Failed to download image from Pexels: {img_response.status_code}")
+                    return None
+            else:
+                log.warning(f"⚠️ No results found on Pexels for '{keywords}'")
+                # Try with just the first keyword as fallback
+                if ' ' in keywords:
+                    log.info("🔄 Retrying with first keyword only...")
+                    simple_keyword = keywords.split()[0]
+                    params["query"] = simple_keyword
+                    response = requests.get(url, headers=headers, params=params, timeout=30)
+                    if response.status_code == 200:
+                        data = response.json()
+                        if data.get('photos') and len(data['photos']) > 0:
+                            photo = data['photos'][0]
+                            image_url = photo['src']['large2x']
+                            img_response = requests.get(image_url, timeout=30)
+                            if img_response.status_code == 200:
+                                image = Image.open(BytesIO(img_response.content))
+                                log.info(f"✅ Image found on Pexels with simpler search: '{simple_keyword}'")
+                                return image
+                return None
+        elif response.status_code == 403:
+            log.error(f"❌ Pexels API: Access forbidden. Check your API key.")
+            return None
+        elif response.status_code == 429:
+            log.error(f"❌ Pexels API: Rate limit exceeded. Try again later.")
+            return None
+        else:
+            log.error(f"❌ Pexels API error: {response.status_code} - {response.text}")
+            return None
+            
+    except requests.exceptions.Timeout:
+        log.error("❌ Pexels request timed out")
+        return None
+    except requests.exceptions.RequestException as e:
+        log.error(f"❌ Network error with Pexels: {e}")
+        return None
+    except Exception as e:
+        log.error(f"❌ Unexpected error searching Pexels: {type(e).__name__}: {e}")
         return None

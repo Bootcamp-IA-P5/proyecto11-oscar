@@ -17,8 +17,12 @@ from src.core.content_chains import (
     create_instagram_adaptor_chain, create_linkedin_adaptor_chain,
     create_twitter_adaptor_chain, generate_science_post_chain
 )
-from src.models.image_generator import (generate_image_from_huggingface,
-                                        generate_image_from_replicate)
+from src.models.image_generator import (
+    generate_image_from_huggingface,
+    generate_image_from_replicate,
+    search_image_from_unsplash,
+    search_image_from_pexels
+)
 from src.core.rag_engine import ScienceRAG
 
 st.set_page_config(layout="wide")
@@ -151,7 +155,14 @@ def render_sidebar():
         image_provider = None
         if generate_image:
             image_provider = st.selectbox(
-                "Proveedor de Imagen", ["Replicate (Flux)", "Hugging Face (SDXL)"]
+                "Proveedor de Imagen",
+                [
+                    "Unsplash (Stock Photos)",
+                    "Pexels (Stock Photos)",
+                    "Hugging Face (SDXL)",
+                    "Replicate (Flux)"
+                ],
+                help="Unsplash y Pexels buscan fotos reales de alta calidad. HuggingFace y Replicate generan imágenes con IA."
             )
         else:
             st.info("💡 Solo se generará el contenido de texto.")
@@ -292,17 +303,31 @@ def generate_content(
 
     if generate_image and image_provider:
         with st.spinner(f"Renderizando imagen con {image_provider}..."):
-            img_prompt = image_prompt_chain.invoke({"blog_content": blog_content})
-
-            if "Replicate" in image_provider:
-                path = generate_image_from_replicate(img_prompt)
+            # Determine which provider to use
+            image_result = None
+            
+            # For stock photo APIs, use the topic directly instead of generating an AI prompt
+            if "Unsplash" in image_provider or "Pexels" in image_provider:
+                # Use the topic for keyword-based search
+                search_query = topic
+                if "Unsplash" in image_provider:
+                    image_result = search_image_from_unsplash(search_query)
+                else:  # Pexels
+                    image_result = search_image_from_pexels(search_query)
             else:
-                path = generate_image_from_huggingface(img_prompt)
+                # For AI image generation, use the detailed prompt from LLM
+                img_prompt = image_prompt_chain.invoke({"blog_content": blog_content})
+                if "Replicate" in image_provider:
+                    path = generate_image_from_replicate(img_prompt)
+                    if path:
+                        image_result = path
+                else:  # HuggingFace
+                    image_result = generate_image_from_huggingface(img_prompt)
 
-            if path:
-                st.image(path, caption=f"Portada generada vía {image_provider}", width='stretch')
+            if image_result:
+                st.image(image_result, caption=f"Imagen obtenida vía {image_provider}", use_container_width=True)
             else:
-                st.error(f"No se pudo generar la imagen: {path}")
+                st.error(f"No se pudo obtener la imagen desde {image_provider}")
 
 
 def main():
