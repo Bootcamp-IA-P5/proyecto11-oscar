@@ -25,13 +25,440 @@ from src.models.image_generator import (
 )
 from src.core.rag_engine import ScienceRAG
 
-st.set_page_config(layout="wide")
+st.set_page_config(
+    page_title="Generador de Contenido IA",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-@st.cache_resource
+# Título principal compacto
+st.markdown("""
+<div style="text-align: center; margin-bottom: 0.3rem;">
+    <h1 style="color: #0F172A; margin: 0; font-size: 2rem; font-weight: 800;">🚀 Generador de Contenido IA</h1>
+    <p style="color: #1E3A5F; margin: 0.2rem 0 0 0; font-size: 0.95rem;">Proyecto 11 - PXI G3</p>
+</div>
+""", unsafe_allow_html=True)
+
+# Subtítulo de sección - alineado a la izquierda y compacto
+st.markdown("""
+<div style="margin: 0.2rem 0 0.5rem 0;">
+    <p style="color: #334155; margin: 0; font-size: 1.7rem; font-weight: 700; text-align: left;">Contenido Generado (PoC)</p>
+</div>
+""", unsafe_allow_html=True)
+
+# Custom CSS styling - Tech Light Theme (Presentación)
+st.markdown("""
+<style>
+    /* Spinner morado visible con alta especificidad */
+    .stSpinner > div,
+    .stSpinner > div > div,
+    div[data-testid="stSpinner"] > div,
+    [class*="stSpinner"] > div {
+        border-top-color: #9F7AEA !important;
+        border-right-color: rgba(159, 122, 234, 0.3) !important;
+        border-bottom-color: rgba(159, 122, 234, 0.3) !important;
+        border-left-color: rgba(159, 122, 234, 0.3) !important;
+    }
+    
+    /* Menú de configuración en negro */
+    [data-testid="stToolbar"] {
+        color: #000000 !important;
+    }
+    
+    [data-testid="stToolbar"] button {
+        color: #000000 !important;
+    }
+    
+    /* Ocultar menús de Streamlit innecesarios */
+    footer {visibility: hidden;}
+    header[data-testid="stHeader"] {background: transparent;}
+    
+    /* Main background - Light blue gradient like presentation */
+    .stApp {
+        background: linear-gradient(135deg, #C8E0F4 0%, #A8C8E8 50%, #B8D4F0 100%) !important;
+    }
+    
+    /* Sidebar styling - Azul marino oscuro */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #2C3E5A 0%, #1E2A3A 50%, #16202E 100%) !important;
+        border-right: 2px solid rgba(0, 212, 255, 0.3) !important;
+    }
+    
+    /* Sidebar text - Claro para contraste con fondo oscuro */
+    [data-testid="stSidebar"] * {
+        color: #E8F1F5 !important;
+    }
+    
+    [data-testid="stSidebar"] .stMarkdown *,
+    [data-testid="stSidebar"] label *,
+    [data-testid="stSidebar"] .element-container *,
+    [data-testid="stSidebar"] .stTextInput label,
+    [data-testid="stSidebar"] .stSelectbox label,
+    [data-testid="stSidebar"] .stMultiSelect label,
+    [data-testid="stSidebar"] .stCheckbox label,
+    [data-testid="stSidebar"] .stRadio label,
+    [data-testid="stSidebar"] .stSlider label,
+    [data-testid="stSidebar"] .stExpander label,
+    [data-testid="stSidebar"] p,
+    [data-testid="stSidebar"] span,
+    [data-testid="stSidebar"] h1,
+    [data-testid="stSidebar"] h2,
+    [data-testid="stSidebar"] h3,
+    [data-testid="stSidebar"] div[class*="stMarkdown"] {
+        color: #E8F1F5 !important;
+    }
+    
+    /* Sidebar input fields and dropdowns - Fondo oscuro con morado */
+    [data-testid="stSidebar"] select,
+    [data-testid="stSidebar"] textarea,
+    [data-testid="stSidebar"] .stSelectbox > div > div,
+    [data-testid="stSidebar"] [data-baseweb="select"] > div,
+    [data-testid="stSidebar"] [data-baseweb="select"] {
+        background: linear-gradient(135deg, #3A4A5E 0%, #2C3A4E 100%) !important;
+        color: #E8F1F5 !important;
+        border: 1px solid #9F7AEA !important;
+    }
+    
+    /* Text input fields - white background con texto negro */
+    [data-testid="stSidebar"] input[type="text"],
+    [data-testid="stSidebar"] .stTextInput > div > div > input,
+    [data-testid="stSidebar"] .stTextArea textarea,
+    [data-testid="stSidebar"] textarea,
+    [data-testid="stSidebar"] input:not([type="checkbox"]):not([type="radio"]) {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        font-weight: 500 !important;
+        border: 2px solid #9F7AEA !important;
+    }
+    
+    /* Placeholder text más marcado */
+    [data-testid="stSidebar"] input::placeholder,
+    [data-testid="stSidebar"] textarea::placeholder {
+        color: #64748B !important;
+        font-weight: 500 !important;
+        opacity: 1 !important;
+    }
+    
+    /* También para el área principal */
+    input::placeholder,
+    textarea::placeholder {
+        color: #475569 !important;
+        font-weight: 500 !important;
+        opacity: 1 !important;
+    }
+    
+    /* Selected value in dropdown */
+    [data-testid="stSidebar"] [data-baseweb="select"] > div > div,
+    [data-testid="stSidebar"] [data-baseweb="select"] input,
+    [data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] div {
+        background: linear-gradient(135deg, #3A4A5E 0%, #2C3A4E 100%) !important;
+        color: #E8F1F5 !important;
+    }
+    
+    /* Spinner styling */
+    [data-testid="stSidebar"] .stSpinner > div,
+    [data-testid="stSidebar"] .stStatus,
+    [data-testid="stSidebar"] [data-testid="stStatusWidget"],
+    [data-testid="stSidebar"] .stAlert,
+    [data-testid="stSidebar"] [data-testid="stNotification"],
+    [data-testid="stSidebar"] .element-container {
+        background-color: transparent !important;
+        border: none !important;
+        padding: 0.5rem;
+        box-shadow: none !important;
+    }
+    
+    [data-testid="stSidebar"] .stSpinner,
+    [data-testid="stSidebar"] .stSpinner *,
+    [data-testid="stSidebar"] .stStatus *,
+    [data-testid="stSidebar"] [data-testid="stStatusWidget"] * {
+        color: #E8F1F5 !important;
+        background-color: transparent !important;
+    }
+    
+    /* Hide Streamlit cache messages */
+    .stCaching,
+    [data-testid="stCaching"],
+    [data-testid="stStreamlitDialog"],
+    div[data-testid="stNotification"]:has(div:contains("Running")),
+    .st-emotion-cache-ue6h4q,
+    [data-testid="stStatusWidget"],
+    .stStatus,
+    div[data-testid="stStatus"],
+    div[class*="stStatus"],
+    div[class*="StatusWidget"] {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        height: 0 !important;
+        width: 0 !important;
+        position: absolute !important;
+        left: -9999px !important;
+    }
+    
+    .stSpinner > div,
+    .stSpinner {
+        background: transparent !important;
+    }
+    
+    /* Spinner morado en el contenido principal */
+    .stSpinner > div,
+    .stSpinner > div > div {
+        border-top-color: #9F7AEA !important;
+        border-right-color: rgba(159, 122, 234, 0.3) !important;
+        border-bottom-color: rgba(159, 122, 234, 0.3) !important;
+        border-left-color: rgba(159, 122, 234, 0.3) !important;
+    }
+    
+    /* Help icons - cyan claro */
+    [data-testid="stSidebar"] .stTooltipIcon,
+    [data-testid="stSidebar"] button[kind="helpTooltip"],
+    [data-testid="stSidebar"] [data-testid="stTooltipHoverTarget"] {
+        color: #00D4FF !important;
+        background-color: transparent !important;
+        border: none !important;
+    }
+    
+    /* Expander styling - oscuro con borde cyan */
+    [data-testid="stSidebar"] .streamlit-expanderHeader,
+    [data-testid="stSidebar"] [data-testid="stExpander"] > div,
+    [data-testid="stSidebar"] details > summary,
+    [data-testid="stSidebar"] .stExpander {
+        background: linear-gradient(135deg, #3A4A5E 0%, #2C3A4E 100%) !important;
+        color: #E8F1F5 !important;
+        border: 1px solid #00D4FF80 !important;
+        border-radius: 8px;
+    }
+    
+    [data-testid="stSidebar"] .streamlit-expanderHeader:hover,
+    [data-testid="stSidebar"] details > summary:hover {
+        background: linear-gradient(135deg, #4A5A6E 0%, #3C4A5E 100%) !important;
+        color: #00D4FF !important;
+        box-shadow: 0 4px 12px rgba(0, 212, 255, 0.3);
+    }
+    
+    /* Expander content background */
+    [data-testid="stSidebar"] .streamlit-expanderContent,
+    [data-testid="stSidebar"] details[open] {
+        background-color: rgba(58, 74, 94, 0.3) !important;
+    }
+    
+    /* Dropdown menu items - oscuros */
+    [data-testid="stSidebar"] [role="option"],
+    [data-testid="stSidebar"] [role="listbox"],
+    [data-testid="stSidebar"] ul[role="listbox"] li {
+        background: linear-gradient(135deg, #3A4A5E 0%, #2C3A4E 100%) !important;
+        color: #E8F1F5 !important;
+    }
+    
+    [data-testid="stSidebar"] [role="option"]:hover {
+        background: linear-gradient(135deg, #4A5A6E 0%, #3C4A5E 100%) !important;
+        color: #00D4FF !important;
+    }
+    
+    /* Slider styling - morado oscuro visible */
+    [data-testid="stSidebar"] .stSlider > div > div > div > div {
+        background-color: #805AD5 !important;
+    }
+    
+    [data-testid="stSidebar"] .stSlider [role="slider"] {
+        background-color: #5B21B6 !important;
+        border: 3px solid #ffffff !important;
+        box-shadow: 0 2px 8px rgba(91, 33, 182, 0.4);
+    }
+    
+    [data-testid="stSidebar"] .stSlider > div > div > div {
+        background-color: rgba(128, 90, 213, 0.3) !important;
+        height: 6px !important;
+    }
+    
+    /* Checkbox styling - blancos con borde cyan */
+    [data-testid="stSidebar"] input[type="checkbox"] {
+        width: 20px !important;
+        height: 20px !important;
+        border: 2px solid #00D4FF !important;
+        background-color: #ffffff !important;
+        border-radius: 4px;
+        appearance: none;
+        cursor: pointer;
+    }
+    
+    [data-testid="stSidebar"] input[type="checkbox"]:checked {
+        background-color: #00D4FF !important;
+        border: 2px solid #00B4D8 !important;
+    }
+    
+    [data-testid="stSidebar"] input[type="checkbox"]:checked::after {
+        content: '✓';
+        color: #ffffff;
+        font-size: 16px;
+        font-weight: bold;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+    }
+    
+    [data-testid="stSidebar"] .stCheckbox {
+        color: #E8F1F5 !important;
+    }
+    
+    /* Number input styling */
+    [data-testid="stSidebar"] input[type="number"],
+    [data-testid="stSidebar"] .stNumberInput input {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        font-weight: 600 !important;
+        border: 2px solid #9F7AEA !important;
+    }
+    
+    /* Generate button styling - Cyan gradient */
+    .stButton > button,
+    .stButton button,
+    button[kind="primary"],
+    button[kind="secondary"] {
+        background: linear-gradient(135deg, #00D4FF 0%, #00B4D8 100%) !important;
+        color: #ffffff !important;
+        font-weight: 700 !important;
+        border: none !important;
+        border-radius: 10px;
+        padding: 0.75rem 2rem;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
+    }
+    
+    .stButton > button:hover,
+    .stButton button:hover {
+        background: linear-gradient(135deg, #48CAE4 0%, #0096C7 100%) !important;
+        box-shadow: 0 6px 20px rgba(0, 212, 255, 0.5);
+        transform: translateY(-2px);
+        color: #ffffff !important;
+    }
+    
+    /* Headings in content - Alto contraste */
+    h1 {
+        color: #0F172A !important;
+        font-weight: 800 !important;
+        border-top: 3px solid #00D4FF;
+        padding-top: 1rem;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+    
+    h2 {
+        color: #1E293B !important;
+        font-weight: 700 !important;
+        border-top: 2px solid #9F7AEA;
+        padding-top: 0.75rem;
+    }
+    
+    h3 {
+        color: #334155 !important;
+        font-weight: 700 !important;
+        border-top: 2px solid #9F7AEA;
+        padding-top: 0.75rem;
+    }
+    
+    /* Success messages - Light cyan con texto oscuro */
+    .element-container .stSuccess {
+        background: linear-gradient(135deg, #D1F4FF 0%, #B8E8F5 100%);
+        border-left: 4px solid #00D4FF;
+        border-radius: 10px;
+        padding: 1rem;
+    }
+    
+    .element-container .stSuccess * {
+        color: #0F172A !important;
+        font-weight: 500 !important;
+    }
+    
+    /* Warning messages - Light purple con texto oscuro */
+    .element-container .stWarning {
+        background: linear-gradient(135deg, #E9D8FD 0%, #D6BCFA 100%);
+        border-left: 4px solid #9F7AEA;
+        border-radius: 10px;
+        padding: 1rem;
+    }
+    
+    .element-container .stWarning * {
+        color: #0F172A !important;
+        font-weight: 500 !important;
+    }
+    
+    /* Info messages - Morado claro con texto oscuro */
+    .element-container .stInfo {
+        background: linear-gradient(135deg, #E9D8FD 0%, #D6BCFA 100%);
+        border-left: 4px solid #9F7AEA;
+        border-radius: 10px;
+        padding: 1rem;
+    }
+    
+    .element-container .stInfo * {
+        color: #0F172A !important;
+        font-weight: 500 !important;
+    }
+    
+    /* Text area styling - light with purple border */
+    .stTextArea textarea {
+        background: #ffffff !important;
+        color: #1E3A5F !important;
+        border: 2px solid #B794F6 !important;
+        border-radius: 8px;
+    }
+    
+    .stTextArea textarea:focus {
+        border: 2px solid #9F7AEA !important;
+        box-shadow: 0 0 8px rgba(159, 122, 234, 0.3);
+    }
+    
+    /* Content paragraphs - alto contraste */
+    p {
+        color: #1E293B !important;
+        font-size: 1.05rem;
+        line-height: 1.7;
+    }
+    
+    /* Main content area cards/containers - light blue */
+    .element-container {
+        background: rgba(255, 255, 255, 0.7);
+        border-radius: 10px;
+        padding: 1rem;
+    }
+    
+    /* Markdown content styling */
+    .stMarkdown {
+        color: #1E293B !important;
+    }
+    
+    .stMarkdown strong {
+        color: #0F172A !important;
+        font-weight: 700 !important;
+    }
+    
+    .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
+        color: #0F172A !important;
+    }
+    
+    /* Link button styling - cyan */
+    .stLinkButton > a {
+        background: linear-gradient(135deg, #00D4FF 0%, #00B4D8 100%) !important;
+        color: #ffffff !important;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 212, 255, 0.3);
+    }
+    
+    .stLinkButton > a:hover {
+        box-shadow: 0 4px 12px rgba(0, 212, 255, 0.5);
+        transform: scale(1.02);
+    }
+</style>
+""", unsafe_allow_html=True)
+
 def get_rag_engine():
-    return ScienceRAG()
+    """Get or initialize RAG engine from session state"""
+    if 'rag_engine' not in st.session_state:
+        st.session_state.rag_engine = ScienceRAG()
+    return st.session_state.rag_engine
 
-@st.cache_data
 def get_cached_papers(_rag_engine):
     """
     _rag_engine empieza con guion bajo para que Streamlit 
@@ -68,15 +495,36 @@ def render_sidebar():
     st.sidebar.title("Generador de contenidos")
     
     with st.sidebar.expander("🔬 Base de Datos Científica"):
-        topic_arxiv = st.text_input("Tema de investigación", value="LLM Safety")
+        topic_arxiv = st.text_input(
+            "Tema de investigación", 
+            value="", 
+            placeholder="Ej: machine learning, drones, quantum computing",
+            key="arxiv_topic_input"
+        )
         num_papers = st.slider("Cantidad de papers (Máx 3 para evitar errores)", 1, 3, 1)
         
         if st.button("Actualizar Conocimiento"):
-            with st.spinner("Descargando y procesando..."):
-                status = rag.ingest_papers(topic_arxiv, max_results=num_papers)
-                st.cache_data.clear()
-                st.success(status)
-                st.rerun()
+            if not topic_arxiv or not topic_arxiv.strip():
+                st.error("Por favor, ingresa un tema de investigación")
+            else:
+                try:
+                    with st.spinner("Descargando y procesando..."):
+                        status = rag.ingest_papers(topic_arxiv.strip(), max_results=num_papers)
+                    
+                    if "Error" in status:
+                        st.error(f"❌ {status}")
+                        # No hacer rerun si hay error, para que se vea el mensaje
+                    else:
+                        st.success(f"✅ {status}")
+                        st.cache_data.clear()
+                        # Solo hacer rerun si fue exitoso
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Error al indexar papers: {str(e)}")
+                    import traceback
+                    with st.expander("Ver detalles del error"):
+                        st.code(traceback.format_exc())
+                    # No hacer rerun si hay excepción
             
     with st.sidebar.expander("📄 Documentos disponibles"):
         indexed_papers = get_cached_papers(rag)
@@ -91,7 +539,7 @@ def render_sidebar():
                 st.warning("Base de datos borrada.")
                 st.rerun()
         else:
-            st.warning("No hay documentos indexados.")
+            st.error("No hay documentos indexados.")
             
     with st.sidebar.expander("⚙️ Parametros de generación"):
         language_map = {
@@ -141,10 +589,12 @@ def render_sidebar():
             
     with st.sidebar:
         topic = st.text_input(
-            "Tema del Contenido:", "Agujeros negros"
+            "Tema del Contenido:",
+            placeholder="Ej: Agujeros negros, inteligencia artificial, energía solar..."
         )
         audience = st.text_input(
-            "Audiencia Objetivo:", "Todo el público"
+            "Audiencia Objetivo:",
+            placeholder="Ej: Todo el público, profesionales del sector, estudiantes..."
         )
 
         generate_twitter = st.checkbox("Adaptar a Twitter/X", value=False)
@@ -236,11 +686,19 @@ def generate_content(
 
     with st.spinner("Generando Artículo de Blog..."):
         st.info(f"Recuperando información de la base de datos científica...")
-        rag = ScienceRAG()
-        documents = rag.get_context(topic)
+        rag = get_rag_engine()
         
-        if not documents:
-            st.warning("No se han encontrado documentos relevantes.")
+        # Check if there are any papers indexed first
+        indexed_papers = rag.list_indexed_papers()
+        if not indexed_papers:
+            st.warning("⚠️ No hay documentos indexados en la base de datos. Por favor, indexa papers primero desde el sidebar en 'Base de Datos Científica'.")
+            documents = ""
+            sources = []
+        else:
+            documents, sources = rag.get_context(topic)
+        
+        if indexed_papers and not documents:
+            st.warning(f"No se encontraron documentos relevantes sobre '{topic}'. Hay {len(indexed_papers)} paper(s) indexados, pero no coinciden con tu tema. Intenta indexar papers específicos sobre '{topic}'.")
             
             inputs = {
                 "topic": topic,
@@ -262,6 +720,18 @@ def generate_content(
             )
             st.markdown("### 📝 Artículo de Blog Científico")
             st.markdown(blog_content)
+            
+            # Display sources with enhanced UI
+            if sources:
+                st.markdown("---")
+                st.markdown("### 📚 Fuentes Científicas (arXiv)")
+                
+                for idx, source in enumerate(sources, 1):
+                    with st.expander(f"📄 **{idx}. {source['title']}**", expanded=False):
+                        st.markdown(f"**👥 Autores:** {source.get('authors', 'Unknown')}")
+                        st.markdown(f"**📅 Publicado:** {source.get('published', 'Unknown')}")
+                        st.markdown(f"**🔗 Leer en arXiv:** [Ver Paper]({source['url']})")
+                        st.link_button("📖 Abrir en arXiv", source['url'], use_container_width=True)
 
     st.divider()
 
@@ -337,8 +807,6 @@ def main():
     This function sets up the main UI, renders the sidebar to get user inputs,
     and triggers the content generation process when the user clicks the button.
     """
-    st.subheader("Contenido Generado (PoC)")
-
     (
         brand_bio,
         llm_selection,

@@ -35,21 +35,31 @@ style = "normal"
 weight = 700
 
 [theme]
-# 📱 MATERIAL DESIGN PALETTE 📱
-primaryColor = "#1976d2"             # Material Blue-700 - Material Design standard
-backgroundColor = "#ffffff"          # Pure white - Material foundation
-secondaryBackgroundColor = "#f5f5f5" # Material Grey-100 - elevation surfaces
-textColor = "#212121"                # Material Grey-900 - high contrast
-linkColor = "#1565c0"                # Material Blue-800 - accessible links
-borderColor = "#e0e0e0"              # Material Grey-300 - subtle dividers
+# � TECH FUTURISTIC PALETTE - Presentación "Generador de Contenido" 🚀
+primaryColor = "#00D4FF"             # Cian brillante - color principal de la presentación
+backgroundColor = "#0a0a0a"          # Negro profundo - fondo oscuro tecnológico
+secondaryBackgroundColor = "#1a1a2e" # Azul oscuro - superficies elevadas
+textColor = "#e0e0e0"                # Gris claro - alto contraste sobre fondo oscuro
+linkColor = "#48CAE4"                # Cian más claro - enlaces destacados
+borderColor = "#2d2d44"              # Gris azulado oscuro - bordes sutiles
 showWidgetBorder = true
-baseRadius = "0.25rem"               # Material's 4dp border radius
-font = "Roboto"                      # Roboto - Google's Material font
-headingFont = "Roboto"               # Consistent Material hierarchy
-codeFont = "RobotoMono"              # Roboto Mono - Material monospace
-codeBackgroundColor = "#f5f5f5"      # Light grey code background
+baseRadius = "0.5rem"                # Bordes más redondeados estilo moderno
+font = "Roboto"                      # Roboto - fuente limpia y moderna
+headingFont = "Roboto"               # Consistencia en títulos
+codeFont = "RobotoMono"              # Roboto Mono - código legible
+codeBackgroundColor = "#16162a"      # Azul muy oscuro para código
 showSidebarBorder = true
 
 [theme.sidebar]
-backgroundColor = "#fafafa"          # Material Grey-50 - elevated sidebar
-secondaryBackgroundColor = "#f0f0f0" # Slightly darker sections
+backgroundColor = "#12121f"          # Azul oscuro casi negro - sidebar elevado
+secondaryBackgroundColor = "#1a1a2e" # Azul oscuro - secciones del sidebar
+
+[client]
+showErrorDetails = false
+
+[runner]
+fastReruns = true
+
+[server]
+enableCORS = false
+enableXsrfProtection = false

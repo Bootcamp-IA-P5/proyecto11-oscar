@@ -184,7 +184,7 @@ def generate_image_from_huggingface(prompt: str) -> Image.Image | None:
                 prompt=prompt,
                 num_inference_steps=60,
                 negative_prompt="bad quality, low resolution, blurry, distorted, ugly",
-                guidance_scale=8.5,      # Add this for better prompt adherence
+                guidance_scale=13,      # Increased for better prompt adherence
                 width=1024,
                 height=1024
             )

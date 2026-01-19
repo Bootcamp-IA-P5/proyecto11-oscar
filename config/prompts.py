@@ -95,12 +95,15 @@ IMAGE_PROMPT_GENERATION_TEMPLATE = """
     {blog_content}
 
     TASK:
-    1. Create a highly detailed image prompt in ENGLISH.
-    2. Minimize the prompt output to a maximum of 100 words.
-    3. Style: Photorealistic, cinematic lighting, 8k, professional photography.
-    4. Do NOT include any text or words in the image.
+    1. Identify the 3-5 MOST SPECIFIC and CONCRETE concepts from the article (technologies, objects, scenarios, actions).
+    2. Create a highly detailed image prompt in ENGLISH that captures these key concepts visually.
+    3. Include: main subject, setting/environment, lighting, composition, style details.
+    4. Aim for 150-200 words to provide rich context.
+    5. Style: Photorealistic, professional photography, cinematic lighting, high detail, 8k quality.
+    6. Do NOT include any text, words, or letters in the image description.
+    7. Focus on tangible, visual elements that represent the article's core ideas.
 
-    IMAGE PROMPT (ENGLISH ONLY): 
+    IMAGE PROMPT (ENGLISH ONLY, 150-200 WORDS): 
     [/INST]
     """
     
