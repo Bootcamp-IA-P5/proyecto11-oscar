@@ -151,6 +151,8 @@ class ScienceRAG:
         """
         try:
             if self.vector_store is not None:
+                if hasattr(self.vector_store, "_client"):
+                    self.vector_store._client.clear_system_cache()
                 self.vector_store = None
             
             if os.path.exists(self.persist_directory):
@@ -158,5 +160,9 @@ class ScienceRAG:
                 self.log.debug(f"Directory {self.persist_directory} deleted successfully.")
             
             self.vector_store = None
+        except PermissionError:
+            self.log.error("Permission denied: The database file is likely still in use.")
+            return "Error: Database is currently locked by the system. Try restarting the session."
         except Exception as e:
             self.log.error(f"Error while resetting database: {e}")
+            return f"Reset failed: {e}"

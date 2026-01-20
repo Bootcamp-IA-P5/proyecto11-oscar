@@ -88,6 +88,7 @@ def render_sidebar():
                 
             if st.button("Limpiar Base de Datos"):
                 rag.reset_database()
+                st.cache_data.clear()
                 st.warning("Base de datos borrada.")
                 st.rerun()
         else:
