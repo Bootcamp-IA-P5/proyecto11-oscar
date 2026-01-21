@@ -1,7 +1,11 @@
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.language_models import BaseChatModel
+from typing import Optional
 from src.models.llm_factory import get_llm_ollama, get_llm_groq, get_llm_gemini, get_llm
+from src.models.financial_news import load_financial_news, build_finance_context
+from src.core.logger.logger import Logger
+from src.core.logger.log_setup import log_setup
 from config.prompts import (
     BLOG_GENERATION_TEMPLATE,
     TWITTER_ADAPTOR_TEMPLATE,
@@ -10,6 +14,9 @@ from config.prompts import (
     IMAGE_PROMPT_GENERATION_TEMPLATE,
     SCIENCE_DIVULGATION_TEMPLATE
 )
+
+log_setup()
+log = Logger().log
 
 def create_chain(llm: BaseChatModel, template: str):
     """
@@ -24,6 +31,42 @@ def create_chain(llm: BaseChatModel, template: str):
     """
     prompt = ChatPromptTemplate.from_template(template)
     return prompt | llm | StrOutputParser()
+
+
+def _prepare_financial_context(
+    use_finance: bool = False,
+    finance_query: Optional[str] = None,
+    finance_max_articles: int = 5
+) -> str:
+    """
+    Prepare financial news context if enabled.
+    
+    Args:
+        use_finance: Whether to include financial news
+        finance_query: Query for financial news (e.g., "Tesla", "inflation")
+        finance_max_articles: Maximum number of articles to fetch
+    
+    Returns:
+        Formatted financial context string or empty string
+    """
+    if not use_finance or not finance_query:
+        return ""
+    
+    try:
+        log.info(f"Fetching financial news for: {finance_query}")
+        news_articles = load_financial_news(finance_query, finance_max_articles)
+        
+        if not news_articles:
+            log.warning("No financial news articles retrieved")
+            return ""
+        
+        context = build_finance_context(news_articles)
+        log.info(f"Financial context prepared with {len(news_articles)} articles")
+        return context
+        
+    except Exception as e:
+        log.error(f"Error preparing financial context: {e}")
+        return ""
 
 
 

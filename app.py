@@ -56,6 +56,9 @@ def render_sidebar():
             - target_language (str): The language for the generated content.
             - topic (str): The main topic for the content.
             - audience (str): The target audience for the content.
+            - finance_enabled (bool): Flag to enable financial news.
+            - finance_query (str or None): Query for financial news.
+            - finance_max_articles (int): Maximum number of financial articles.
             - generate_twitter (bool): Flag to generate a Twitter adaptation.
             - generate_instagram (bool): Flag to generate an Instagram adaptation.
             - generate_linkedin (bool): Flag to generate a LinkedIn adaptation.
@@ -66,6 +69,31 @@ def render_sidebar():
     rag = get_rag_engine()
     
     st.sidebar.title("Generador de contenidos")
+    
+    # Financial News Section (optional)
+    with st.sidebar.expander("📈 Financial News (optional)"):
+        finance_enabled = st.checkbox(
+            "Enable financial news grounding",
+            value=False,
+            help="Include real-time financial news from Alpha Vantage API"
+        )
+        
+        finance_query = None
+        finance_max_articles = 5
+        
+        if finance_enabled:
+            finance_query = st.text_input(
+                "Financial topic or company",
+                placeholder="e.g., Tesla, inflation, interest rates",
+                help="Search query for financial news"
+            )
+            finance_max_articles = st.slider(
+                "Max articles",
+                min_value=1,
+                max_value=10,
+                value=5,
+                help="Maximum number of news articles to fetch"
+            )
     
     with st.sidebar.expander("🔬 Base de Datos Científica"):
         topic_arxiv = st.text_input("Tema de investigación", value="LLM Safety")
@@ -176,6 +204,9 @@ def render_sidebar():
         target_language,
         topic,
         audience,
+        finance_enabled,
+        finance_query,
+        finance_max_articles,
         generate_twitter,
         generate_instagram,
         generate_linkedin,
@@ -191,6 +222,9 @@ def generate_content(
     target_language,
     topic,
     audience,
+    finance_enabled,
+    finance_query,
+    finance_max_articles,
     generate_twitter,
     generate_instagram,
     generate_linkedin,
@@ -210,6 +244,9 @@ def generate_content(
         target_language (str): The target language for the content.
         topic (str): The main topic for the content generation.
         audience (str): The target audience for the content.
+        finance_enabled (bool): If True, includes financial news context.
+        finance_query (str or None): Query for financial news API.
+        finance_max_articles (int): Maximum number of financial articles to fetch.
         generate_twitter (bool): If True, generates content for Twitter/X.
         generate_instagram (bool): If True, generates content for Instagram.
         generate_linkedin (bool): If True, generates content for LinkedIn.
@@ -234,6 +271,14 @@ def generate_content(
         st.stop()
 
     brand_bio = brand_bio.strip() if brand_bio.strip() else "No proporcionado."
+    
+    # Prepare financial context if enabled
+    from src.core.content_chains import _prepare_financial_context
+    financial_context = _prepare_financial_context(
+        use_finance=finance_enabled,
+        finance_query=finance_query,
+        finance_max_articles=finance_max_articles
+    )
 
     with st.spinner("Generando Artículo de Blog..."):
         st.info(f"Recuperando información de la base de datos científica...")
@@ -248,6 +293,7 @@ def generate_content(
                 "audience": audience,
                 "target_language": target_language,
                 "brand_bio": brand_bio,
+                "financial_context": financial_context
             }
             blog_content = blog_chain.invoke(inputs)
             st.markdown("### 📝 Artículo de Blog")
@@ -258,7 +304,8 @@ def generate_content(
                     "documents": documents, 
                     "topic": topic, 
                     "target_language": target_language,
-                    "brand_bio": brand_bio                
+                    "brand_bio": brand_bio,
+                    "financial_context": financial_context
                 }
             )
             st.markdown("### 📝 Artículo de Blog Científico")
@@ -346,6 +393,9 @@ def main():
         target_language,
         topic,
         audience,
+        finance_enabled,
+        finance_query,
+        finance_max_articles,
         generate_twitter,
         generate_instagram,
         generate_linkedin,
@@ -361,6 +411,9 @@ def main():
             target_language,
             topic,
             audience,
+            finance_enabled,
+            finance_query,
+            finance_max_articles,
             generate_twitter,
             generate_instagram,
             generate_linkedin,

@@ -4,6 +4,8 @@ BLOG_GENERATION_TEMPLATE = """
     MANDATORY: Every single word, including the TITLE and headings, MUST be in {target_language}.
     <</SYS>>
 
+    {financial_context}
+
     BRAND PROFILE (Context):
     {brand_bio}
 
@@ -111,6 +113,8 @@ SCIENCE_DIVULGATION_TEMPLATE = """
 
     SCIENTIFIC CONTEXT (Retrieved from arXiv papers):
     {documents}
+    
+    {financial_context}
     
     BRAND PROFILE (Context):
     {brand_bio}
