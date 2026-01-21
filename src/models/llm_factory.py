@@ -73,7 +73,8 @@ def get_llm_groq() -> BaseChatModel:
         
     except Exception as e:
         log.error(f"⚠️ Error initializing LLM basado en API '{model_name}' (Groq): {e}.")
-        
+        raise e
+
 def get_llm_gemini() -> BaseChatModel:
     """
     Initializes and returns a Google Gemini language model.
