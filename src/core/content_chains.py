@@ -37,7 +37,7 @@ def _prepare_financial_context(
     use_finance: bool = False,
     finance_query: Optional[str] = None,
     finance_max_articles: int = 5
-) -> str:
+) -> tuple[str, list]:
     """
     Prepare financial news context if enabled.
     
@@ -47,10 +47,10 @@ def _prepare_financial_context(
         finance_max_articles: Maximum number of articles to fetch
     
     Returns:
-        Formatted financial context string or empty string
+        Tuple of (formatted financial context string, list of raw articles)
     """
     if not use_finance or not finance_query:
-        return ""
+        return "", []
     
     try:
         log.info(f"Fetching financial news for: {finance_query}")
@@ -58,15 +58,112 @@ def _prepare_financial_context(
         
         if not news_articles:
             log.warning("No financial news articles retrieved")
-            return ""
+            return "", []
         
         context = build_finance_context(news_articles)
         log.info(f"Financial context prepared with {len(news_articles)} articles")
-        return context
+        return context, news_articles
         
     except Exception as e:
         log.error(f"Error preparing financial context: {e}")
-        return ""
+        return "", []
+
+
+def assemble_grounding_context(
+    rag_context: str = "",
+    financial_context: str = "",
+    debug: bool = False
+) -> str:
+    """
+    Assemble the final grounding context from multiple sources.
+    
+    This function combines RAG (scientific) and financial contexts
+    into a single, well-labeled context block for the LLM.
+    
+    Args:
+        rag_context: Scientific context from arXiv papers
+        financial_context: Financial news context from Alpha Vantage
+        debug: If True, logs the assembled context for validation
+    
+    Returns:
+        Combined context string with clear source labels
+    """
+    context_blocks = []
+    sources_used = []
+    
+    if rag_context:
+        labeled_rag = f"""
+🔬 SCIENTIFIC CONTEXT (from arXiv papers):
+-------------------------------------------
+{rag_context}
+-------------------------------------------
+"""
+        context_blocks.append(labeled_rag)
+        sources_used.append("arXiv RAG")
+    
+    if financial_context:
+        # Financial context already has labels from build_finance_context
+        context_blocks.append(financial_context)
+        sources_used.append("Financial News")
+    
+    combined_context = "\n".join(context_blocks)
+    
+    if debug:
+        log.info("=" * 60)
+        log.info("DEBUG: ASSEMBLED GROUNDING CONTEXT")
+        log.info(f"Sources used: {sources_used if sources_used else 'None (pure LLM)'}")
+        log.info("-" * 60)
+        if combined_context:
+            # Log first 500 chars to avoid flooding logs
+            log.info(f"Context preview:\n{combined_context[:500]}...")
+        else:
+            log.info("No external context - using pure LLM generation")
+        log.info("=" * 60)
+    
+    return combined_context
+
+
+def get_grounding_summary(
+    rag_documents: str = "",
+    financial_articles: list = None
+) -> dict:
+    """
+    Generate a summary of grounding sources for UI transparency.
+    
+    Args:
+        rag_documents: Raw RAG context string
+        financial_articles: List of financial article dicts
+    
+    Returns:
+        Dict with source counts and details
+    """
+    summary = {
+        "sources_used": [],
+        "rag_enabled": bool(rag_documents),
+        "rag_doc_count": 0,
+        "financial_enabled": bool(financial_articles),
+        "financial_article_count": 0,
+        "financial_articles": [],
+        "is_grounded": False
+    }
+    
+    if rag_documents:
+        # Count approximate number of document chunks
+        chunks = rag_documents.split("\n\n")
+        summary["rag_doc_count"] = len([c for c in chunks if c.strip()])
+        summary["sources_used"].append(f"arXiv ({summary['rag_doc_count']} chunks)")
+    
+    if financial_articles:
+        summary["financial_article_count"] = len(financial_articles)
+        summary["financial_articles"] = [
+            {"title": a.get("title", ""), "source": a.get("source", "")}
+            for a in financial_articles[:5]  # Limit for UI
+        ]
+        summary["sources_used"].append(f"Financial News ({summary['financial_article_count']} articles)")
+    
+    summary["is_grounded"] = summary["rag_enabled"] or summary["financial_enabled"]
+    
+    return summary
 
 
 

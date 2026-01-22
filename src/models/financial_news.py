@@ -44,14 +44,37 @@ def load_financial_news(query: str, max_articles: int = 5) -> List[Dict]:
     
     try:
         url = "https://www.alphavantage.co/query"
-        params = {
-            "function": "NEWS_SENTIMENT",
-            "tickers": query,
-            "apikey": api_key,
-            "limit": max_articles
-        }
         
-        log.info(f"Fetching financial news for query: {query}")
+        # Normalize and transliterate query to avoid mojibake/accents issues
+        import re
+        import unicodedata
+
+        def _normalize(q: str) -> str:
+            q = (q or "").strip()
+            # Normalize unicode and remove diacritics (e.g., 'inflacción' -> 'inflaccion')
+            q_norm = unicodedata.normalize('NFKD', q)
+            q_ascii = q_norm.encode('ascii', 'ignore').decode('ascii')
+            return q_ascii or q
+
+        query_norm = _normalize(query)
+
+        # Check if query looks like a ticker (alphanumeric, colons, underscores, hyphens)
+        if re.match(r'^[A-Z0-9:_\-]+$', query_norm.upper()):
+            params = {
+                "function": "NEWS_SENTIMENT",
+                "tickers": query_norm,
+                "apikey": api_key,
+                "limit": max_articles
+            }
+        else:
+            params = {
+                "function": "NEWS_SENTIMENT",
+                "topics": query_norm,
+                "apikey": api_key,
+                "limit": max_articles
+            }
+
+        log.info(f"Fetching financial news for query: {query!r} (normalized: {query_norm!r})")
         response = requests.get(url, params=params, timeout=10)
         response.raise_for_status()
         
@@ -81,6 +104,11 @@ def load_financial_news(query: str, max_articles: int = 5) -> List[Dict]:
             articles.append(article)
         
         log.info(f"Successfully fetched {len(articles)} financial news articles")
+        
+        # Log API response summary for debugging
+        if not articles:
+            log.warning(f"No articles found in API response for query '{query}'. Response keys: {list(data.keys())}")
+        
         return articles
         
     except requests.exceptions.Timeout:

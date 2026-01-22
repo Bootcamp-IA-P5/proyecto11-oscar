@@ -15,7 +15,8 @@ import streamlit as st
 from src.core.content_chains import (
     create_blog_chain, create_image_prompt_chain,
     create_instagram_adaptor_chain, create_linkedin_adaptor_chain,
-    create_twitter_adaptor_chain, generate_science_post_chain
+    create_twitter_adaptor_chain, generate_science_post_chain,
+    assemble_grounding_context, get_grounding_summary
 )
 from src.models.image_generator import (
     generate_image_from_huggingface,
@@ -70,12 +71,12 @@ def render_sidebar():
     
     st.sidebar.title("Generador de contenidos")
     
-    # Financial News Section (optional)
-    with st.sidebar.expander("📈 Financial News (optional)"):
+    # Sección de Noticias Financieras (opcional)
+    with st.sidebar.expander("📈 Noticias Financieras (opcional)"):
         finance_enabled = st.checkbox(
-            "Enable financial news grounding",
+            "Activar noticias financieras",
             value=False,
-            help="Include real-time financial news from Alpha Vantage API"
+            help="Incluye noticias financieras en tiempo real desde Alpha Vantage"
         )
         
         finance_query = None
@@ -83,17 +84,56 @@ def render_sidebar():
         
         if finance_enabled:
             finance_query = st.text_input(
-                "Financial topic or company",
-                placeholder="e.g., Tesla, inflation, interest rates",
-                help="Search query for financial news"
+                "Tema financiero o empresa",
+                placeholder="Ej: Tesla, inflación, tipos de interés",
+                help="Consulta para buscar noticias financieras"
             )
             finance_max_articles = st.slider(
-                "Max articles",
+                "Máx. artículos",
                 min_value=1,
                 max_value=10,
                 value=5,
-                help="Maximum number of news articles to fetch"
+                help="Número máximo de noticias a recuperar"
             )
+            # Opción de depuración: mostrar respuesta cruda de la API
+            show_finance_debug = st.checkbox(
+                "Mostrar respuesta cruda de la API financiera (debug)",
+                value=False,
+                help="Muestra la respuesta de Alpha Vantage y cómo se detecta ticker vs tema. Solo para depuración."
+            )
+            if show_finance_debug and finance_query:
+                try:
+                    from src.models.financial_news import load_financial_news
+                    st.info("Detectando tipo de consulta: ticker (mayúsculas/formato) vs tema (texto libre)")
+                    import re
+                    is_ticker = bool(re.match(r'^[A-Z0-9:_\-]+$', finance_query.strip().upper()))
+                    st.write("Detectado como:", "Ticker" if is_ticker else "Tema/texto")
+                    raw_news = load_financial_news(finance_query, max_articles=finance_max_articles)
+                    if raw_news:
+                        st.write("Artículos devueltos:", len(raw_news))
+                        st.json(raw_news)
+                    else:
+                        st.warning("No se devolvieron artículos. Comprueba la API key, los límites de la API o prueba otra consulta.")
+                except Exception as _err:
+                    st.error(f"Error al recuperar noticias financieras: {_err}")
+
+    # Sección de Base Científica (opcional)
+    with st.sidebar.expander("🔬 Base de Datos Científica (arXiv)"):
+        rag_enabled = st.checkbox(
+            "Activar contexto científico (arXiv)",
+            value=True,
+            help="Incluye contexto científico recuperado de papers en arXiv"
+        )
+        topic_arxiv = st.text_input("Tema de investigación", value="LLM Safety")
+        num_papers = st.slider("Cantidad de papers (Máx 3 para evitar errores)", 1, 3, 1)
+        
+        if st.button("Actualizar Conocimiento"):
+            with st.spinner("Descargando y procesando..."):
+                rag = get_rag_engine()
+                status = rag.ingest_papers(topic_arxiv, max_results=num_papers)
+                st.cache_data.clear()
+                st.success(status)
+                st.rerun()
     
     with st.sidebar.expander("🔬 Base de Datos Científica"):
         topic_arxiv = st.text_input("Tema de investigación", value="LLM Safety")
@@ -195,7 +235,15 @@ def render_sidebar():
             )
         else:
             st.info("💡 Solo se generará el contenido de texto.")
-
+        
+        # Debug mode for developers
+        with st.expander("🔧 Developer Options"):
+            debug_mode = st.checkbox(
+                "Enable debug mode",
+                value=False,
+                help="Show grounding context details in logs and UI"
+            )
+        
         generate_button = st.button("Generar Todo el Contenido", type="primary")
 
     return (
@@ -212,6 +260,7 @@ def render_sidebar():
         generate_linkedin,
         generate_image,
         image_provider,
+        debug_mode,
         generate_button,
     )
 
@@ -230,6 +279,7 @@ def generate_content(
     generate_linkedin,
     generate_image,
     image_provider,
+    debug_mode=False,
 ):
     """
     Generates and displays content based on the user's selections.
@@ -252,6 +302,7 @@ def generate_content(
         generate_linkedin (bool): If True, generates content for LinkedIn.
         generate_image (bool): If True, generates a cover image.
         image_provider (str or None): The provider for the image generation service.
+        debug_mode (bool): If True, shows debug information about grounding context.
     """
     if not topic or not audience:
         st.warning("Por favor, introduce el Tema y la Audiencia.")
@@ -272,22 +323,59 @@ def generate_content(
 
     brand_bio = brand_bio.strip() if brand_bio.strip() else "No proporcionado."
     
-    # Prepare financial context if enabled
+    # Prepare financial context if enabled (now returns tuple)
     from src.core.content_chains import _prepare_financial_context
-    financial_context = _prepare_financial_context(
+    financial_context, financial_articles = _prepare_financial_context(
         use_finance=finance_enabled,
         finance_query=finance_query,
         finance_max_articles=finance_max_articles
     )
 
-    with st.spinner("Generando Artículo de Blog..."):
-        st.info(f"Recuperando información de la base de datos científica...")
+    # Recuperar contexto científico solo si está activado
+    documents = ""
+    if 'rag_enabled' in locals() and rag_enabled:
         rag = ScienceRAG()
         documents = rag.get_context(topic)
-        
+
+    with st.spinner("Generando Artículo de Blog..."):
+        # Resumen de grounding para transparencia en la UI
+        grounding_summary = get_grounding_summary(
+            rag_documents=documents,
+            financial_articles=financial_articles
+        )
+        # Ensamblar contexto combinado con logging si debug
+        combined_context = assemble_grounding_context(
+            rag_context=documents,
+            financial_context=financial_context,
+            debug=debug_mode
+        )
+
+        # TRANSPARENCIA UI: Mostrar fuentes utilizadas
+        if grounding_summary["is_grounded"]:
+            st.success(f"📡 **Contenido fundamentado en fuentes externas:** {', '.join(grounding_summary['sources_used'])}")
+            # Mostrar artículos financieros recuperados
+            if grounding_summary["financial_enabled"]:
+                st.markdown(f"#### 📈 Noticias Financieras ({grounding_summary['financial_article_count']} artículos)")
+                for article in grounding_summary["financial_articles"]:
+                    st.markdown(f"- **{article['title']}**  
+                        <span style='color:gray;font-size:small'>Fuente: {article['source']}</span>", unsafe_allow_html=True)
+                if not grounding_summary["financial_articles"]:
+                    st.warning("No se recuperaron noticias financieras.")
+            # Mostrar papers científicos recuperados
+            if grounding_summary["rag_enabled"]:
+                st.markdown(f"#### 🔬 Contexto Científico (arXiv): {grounding_summary['rag_doc_count']} fragmentos de papers")
+                if not documents:
+                    st.warning("No se recuperó contexto científico de arXiv.")
+            # Debug: mostrar contexto ensamblado
+            if debug_mode:
+                st.markdown("---")
+                st.markdown("**🔧 Debug: Contexto ensamblado (primeros 1000 chars)**")
+                st.code(combined_context[:1000] if combined_context else "[Contexto vacío]", language="text")
+        else:
+            st.info("🧠 Generando con LLM puro (sin fuentes externas)")
+
+        # Selección de cadena según disponibilidad de contexto científico
         if not documents:
-            st.warning("No se han encontrado documentos relevantes.")
-            
             inputs = {
                 "topic": topic,
                 "audience": audience,
@@ -401,6 +489,7 @@ def main():
         generate_linkedin,
         generate_image,
         image_provider,
+        debug_mode,
         generate_button,
     ) = render_sidebar()
 
@@ -419,7 +508,9 @@ def main():
             generate_linkedin,
             generate_image,
             image_provider,
+            debug_mode,
         )
+
 
 
 if __name__ == "__main__":
