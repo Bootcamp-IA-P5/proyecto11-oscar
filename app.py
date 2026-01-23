@@ -3,11 +3,6 @@ Streamlit app for intelligent content generation using LLM + RAG + Financial con
 """
 
 import streamlit as st
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_CENTER
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
-import io
 
 from src.core.content_chains import (
     create_blog_chain,
@@ -53,6 +48,37 @@ def get_rag_engine():
 @st.cache_data(ttl=2)
 def get_cached_papers(_rag_engine):
     return _rag_engine.list_indexed_papers()
+
+
+# -----------------------
+# Extraction images keywords
+# -----------------------
+def extract_image_keywords(blog_content, llm_selection):
+    """
+    Extract 5 strong stock-photo keywords using LLM.
+    """
+    chain = create_blog_chain(llm_selection)
+
+    prompt = f"""
+    Extract 5 short visual keywords for stock photography websites like Unsplash or Pexels.
+    Return comma-separated keywords.
+    English only.
+    No explanations.
+
+    Text:
+    {blog_content}
+    """
+
+    keywords = chain.invoke({
+        "topic": prompt,
+        "audience": "",
+        "target_language": "English",
+        "brand_bio": "",
+        "financial_context": ""   
+    })
+
+    return keywords.strip()
+
 
 
 # -----------------------
@@ -298,13 +324,7 @@ def generate_content(
             rag_sources = rag_result["sources"]
             rag_coverage = rag_result["coverage"]
             
-            # Heurística básica de relevancia
-            if topic.lower() not in documents.lower():
-                st.warning("El conocimiento científico recuperado no parece relevante para el tema. Se usará generación estándar.")
-                documents = ""
-                rag_sources = []
-                rag_coverage = 0
-            
+                        
             if debug_mode:
                 st.write("DEBUG - Documentos recuperados:", documents[:500])
                 
@@ -385,34 +405,15 @@ def generate_content(
     st.markdown("### 📝 Artículo de Blog")
     st.markdown(blog_content)
     
-    # -----------------------
-    # PDF Generation
-    # -----------------------
-    
-    st.divider()
-
-if st.button("📄 Exportar a PDF"):
-    pdf = generate_pdf(
-        blog_content=blog_content,
-        twitter=twitter_post if generate_twitter else None,
-        instagram=instagram_post if generate_instagram else None,
-        linkedin=linkedin_post if generate_linkedin else None,
-        rag_sources=rag_sources if rag_enabled else None,
-        financial_articles=financial_articles if finance_enabled else None
-    )
-
-    st.download_button(
-        label="Descargar PDF",
-        data=pdf,
-        file_name="nemotecas_ai_content.pdf",
-        mime="application/pdf"
-    )
-
     
     
     # -----------------------
     # Social Media Adaptations
     # -----------------------
+    
+    twitter_post = None
+    instagram_post = None
+    linkedin_post = None
 
     if generate_twitter:
         twitter_chain = create_twitter_adaptor_chain(llm_selection)
@@ -451,6 +452,9 @@ if st.button("📄 Exportar a PDF"):
 
         st.markdown("### 💼 LinkedIn")
         st.markdown(linkedin_post)
+        
+    
+           
 
     # -----------------------
     # Image generation
@@ -480,28 +484,64 @@ if st.button("📄 Exportar a PDF"):
             st.error("No se pudieron separar correctamente los prompts de imagen.")
             return
 
-        # Generate selected images
+        # Quality booster
+        editorial_prompt += ", ultra realistic, extremely detailed, sharp focus, professional photography, no blur, no watermark, no text"
+        creative_prompt += ", ultra detailed, cinematic lighting, artistic composition, sharp focus, no blur, no watermark, no text"
+
+        # Generate stock keywords for Unsplash / Pexels
+        stock_keywords = extract_image_keywords(blog_content, llm_selection)
+
+        if debug_mode:
+            st.info(f"📷 Stock keywords: {stock_keywords}")
+
+        # ---- PROVIDER LOGIC ----
         if image_provider:
 
-            if image_editorial:
-                st.markdown("### 🖼️ Imagen profesional")
-                with st.spinner(f"Generando imagen editorial con {image_provider}..."):
+            # UNSPLASH
+            if "Unsplash" in image_provider:
+                if image_editorial:
+                    st.markdown("### 🖼️ Imagen profesional (Unsplash)")
+                    img = search_image_from_unsplash(stock_keywords)
+                    if img:
+                        st.image(img, use_container_width=True)
+
+                if image_creative:
+                    st.markdown("### 🎨 Imagen creativa (Unsplash)")
+                    img = search_image_from_unsplash(stock_keywords)
+                    if img:
+                        st.image(img, use_container_width=True)
+
+            # PEXELS
+            elif "Pexels" in image_provider:
+                if image_editorial:
+                    st.markdown("### 🖼️ Imagen profesional (Pexels)")
+                    img = search_image_from_pexels(stock_keywords)
+                    if img:
+                        st.image(img, use_container_width=True)
+
+                if image_creative:
+                    st.markdown("### 🎨 Imagen creativa (Pexels)")
+                    img = search_image_from_pexels(stock_keywords)
+                    if img:
+                        st.image(img, use_container_width=True)
+
+            # SDXL / Replicate
+            else:
+                if image_editorial:
+                    st.markdown("### 🖼️ Imagen profesional")
                     if "Replicate" in image_provider:
                         img = generate_image_from_replicate(editorial_prompt)
                     else:
                         img = generate_image_from_huggingface(editorial_prompt)
-
                     if img:
                         st.image(img, use_container_width=True)
 
-            if image_creative:
-                st.markdown("### 🎨 Imagen creativa")
-                with st.spinner(f"Generando imagen creativa con {image_provider}..."):
+                if image_creative:
+                    st.markdown("### 🎨 Imagen creativa")
                     if "Replicate" in image_provider:
                         img = generate_image_from_replicate(creative_prompt)
                     else:
                         img = generate_image_from_huggingface(creative_prompt)
-
                     if img:
                         st.image(img, use_container_width=True)
 

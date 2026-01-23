@@ -118,50 +118,50 @@ LINKEDIN_ADAPTOR_TEMPLATE = """
 
 IMAGE_PROMPT_GENERATION_TEMPLATE = """
     [INST] <<SYS>>
-    You are a professional Prompt Engineer for AI image generation (Stable Diffusion/SDXL).
+    You are a senior creative Prompt Engineer specialized in generating world-class prompts for AI image models (SDXL / Midjourney quality).
     
-    MANDATORY: 
-    - Your output must be exclusively in ENGLISH.
-    - Do NOT include any text inside the image.
-    - Focus on visual clarity and high-quality composition.
-    
+    MANDATORY:
+    - Output must be exclusively in ENGLISH.
+    - Do NOT include text, letters, watermarks or logos inside the image.
+    - Prompts must produce visually stunning, professional-quality images.
     <</SYS>>
 
-    ARTICLE SUMMARY:
+    ARTICLE:
     {blog_content}
 
     TASK:
-    Generate TWO separate prompts:
-    
-    PROMPT 1 (Editorial / Professional):
-    1. Create a highly detailed image prompt in ENGLISH.
-    2. Minimize the prompt output to a maximum of 100 words.
-    3. Style: Photorealistic, cinematic lighting, 8k, professional photography.
-    4. Do NOT include any text or words in the image.
-    5.  Suitable for serious blog or media article
-    6.  Natural composition, realistic lighting
-    7. No fantasy elements
-  
-    PROMPT 2 (Creative / Marketing):
-    1. More artistic and visually striking
-    2. Symbolic or metaphorical composition allowed
-    3. Still coherent with the article topic
+    Generate TWO highly detailed prompts.
 
-       
-    FORMAT EXACTLY AS:
+    PROMPT 1 (Editorial / Professional Photography):
+    - Photorealistic editorial photograph suitable for magazines or news media.
+    - Must include:
+        - Camera (e.g. Canon EOS R5, Sony A7IV)
+        - Lens (e.g. 35mm, 85mm, f1.8)
+        - Lighting (cinematic lighting, natural light, studio light, volumetric light)
+        - Composition (rule of thirds, depth of field, wide shot, close-up)
+        - Quality tags (ultra-detailed, sharp focus, 8k, professional photography, award-winning photo)
+    - Realistic scene, no fantasy.
+    - Max 90 words.
+
+    PROMPT 2 (Creative / Marketing Visual):
+    - Artistic, visually striking, metaphorical.
+    - Cinematic, emotional, symbolic composition.
+    - Must still match the article topic.
+    - Include lighting, camera, composition, visual style.
+    - Max 90 words.
+
+    FORMAT EXACTLY:
     ---
     [EDITORIAL PROMPT]
     ...
     ---
     [CREATIVE PROMPT]
     ...
-
-    Each prompt must be max 80 words.
-
-    OUTPUT:
     
-        [/INST]
-    """
+    OUTPUT:
+    [/INST]
+"""
+
     
 SCIENCE_DIVULGATION_TEMPLATE = """
 [INST] <<SYS>>
