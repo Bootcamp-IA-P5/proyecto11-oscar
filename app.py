@@ -1,159 +1,113 @@
 """
-This module implements a Streamlit web application for generating creative content.
-
-The application allows users to generate blog articles, adapt them for Twitter,
-and create accompanying cover images based on a given topic and target audience.
-
-It utilizes language model chains for content generation and adaptation, and a
-separate model for image generation.
-
-To run the application:
-streamlit run app.py
+Streamlit app for intelligent content generation using LLM + RAG + Financial context.
 """
+
 import streamlit as st
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
+import io
 
 from src.core.content_chains import (
-    create_blog_chain, create_image_prompt_chain,
-    create_instagram_adaptor_chain, create_linkedin_adaptor_chain,
-    create_twitter_adaptor_chain, generate_science_post_chain,
-    assemble_grounding_context, get_grounding_summary
+    create_blog_chain,
+    create_image_prompt_chain,
+    create_instagram_adaptor_chain,
+    create_linkedin_adaptor_chain,
+    create_twitter_adaptor_chain,
+    generate_science_post_chain,
+    assemble_grounding_context,
+    get_grounding_summary,
+    _prepare_financial_context,
 )
+
+
 from src.models.image_generator import (
     generate_image_from_huggingface,
     generate_image_from_replicate,
     search_image_from_unsplash,
-    search_image_from_pexels
+    search_image_from_pexels,
 )
 from src.core.rag_engine import ScienceRAG
 
+from src.models.financial_news import (
+    load_financial_news, 
+    build_finance_context, 
+    load_financial_news_multi,
+    load_financial_news_newsapi
+)
+
+
 st.set_page_config(layout="wide")
+
+
+# -----------------------
+# Cached resources
+# -----------------------
 
 @st.cache_resource
 def get_rag_engine():
     return ScienceRAG()
 
-@st.cache_data
+
+@st.cache_data(ttl=2)
 def get_cached_papers(_rag_engine):
-    """
-    _rag_engine empieza con guion bajo para que Streamlit 
-    no intente hashear el objeto (ya que no cambia la salida).
-    """
     return _rag_engine.list_indexed_papers()
 
 
+# -----------------------
+# Sidebar UI
+# -----------------------
+
 def render_sidebar():
-    """
-    Renders the sidebar UI and collects user input for content generation.
+    """Collects all UI inputs and returns them in a consistent order."""
 
-    This function creates all the interactive widgets in the sidebar, allowing
-    the user to specify brand information, choose a language model, set the
-    generation language, define the topic and audience, and select which
-    content pieces to generate (e.g., social media adaptations, cover image).
-
-    Returns:
-        tuple: A tuple containing all the user-selected settings:
-            - brand_bio (str): Information about the company or person.
-            - llm_selection (str): The chosen language model provider.
-            - target_language (str): The language for the generated content.
-            - topic (str): The main topic for the content.
-            - audience (str): The target audience for the content.
-            - finance_enabled (bool): Flag to enable financial news.
-            - finance_query (str or None): Query for financial news.
-            - finance_max_articles (int): Maximum number of financial articles.
-            - generate_twitter (bool): Flag to generate a Twitter adaptation.
-            - generate_instagram (bool): Flag to generate an Instagram adaptation.
-            - generate_linkedin (bool): Flag to generate a LinkedIn adaptation.
-            - generate_image (bool): Flag to generate a cover image.
-            - image_provider (str or None): The selected image generation provider.
-            - generate_button (bool): True if the generation button was clicked.
-    """
     rag = get_rag_engine()
-    
     st.sidebar.title("Generador de contenidos")
-    
-    # Sección de Noticias Financieras (opcional)
-    with st.sidebar.expander("📈 Noticias Financieras (opcional)"):
-        finance_enabled = st.checkbox(
-            "Activar noticias financieras",
-            value=False,
-            help="Incluye noticias financieras en tiempo real desde Alpha Vantage"
-        )
-        
-        finance_query = None
-        finance_max_articles = 5
-        
-        if finance_enabled:
-            finance_query = st.text_input(
-                "Tema financiero o empresa",
-                placeholder="Ej: Tesla, inflación, tipos de interés",
-                help="Consulta para buscar noticias financieras"
-            )
-            finance_max_articles = st.slider(
-                "Máx. artículos",
-                min_value=1,
-                max_value=10,
-                value=5,
-                help="Número máximo de noticias a recuperar"
-            )
-            # Opción de depuración: mostrar respuesta cruda de la API
-            show_finance_debug = st.checkbox(
-                "Mostrar respuesta cruda de la API financiera (debug)",
-                value=False,
-                help="Muestra la respuesta de Alpha Vantage y cómo se detecta ticker vs tema. Solo para depuración."
-            )
-            if show_finance_debug and finance_query:
-                try:
-                    from src.models.financial_news import load_financial_news
-                    st.info("Detectando tipo de consulta: ticker (mayúsculas/formato) vs tema (texto libre)")
-                    import re
-                    is_ticker = bool(re.match(r'^[A-Z0-9:_\-]+$', finance_query.strip().upper()))
-                    st.write("Detectado como:", "Ticker" if is_ticker else "Tema/texto")
-                    raw_news = load_financial_news(finance_query, max_articles=finance_max_articles)
-                    if raw_news:
-                        st.write("Artículos devueltos:", len(raw_news))
-                        st.json(raw_news)
-                    else:
-                        st.warning("No se devolvieron artículos. Comprueba la API key, los límites de la API o prueba otra consulta.")
-                except Exception as _err:
-                    st.error(f"Error al recuperar noticias financieras: {_err}")
 
-    # Sección de Base Científica (opcional)
-    with st.sidebar.expander("🔬 Base de Datos Científica (arXiv)"):
+    
+    # --- Financial News ---
+    with st.sidebar.expander("📈 Noticias financieras"):
+
+        finance_query = st.text_input(
+            "Tema financiero",
+            placeholder="Ej: inflation, ECB, Tesla, interest rates...",
+            key="finance_query_input",
+        )
+
+        finance_max_articles = st.slider("Máx. artículos", 1, 10, 5)
+
+        st.markdown("**Fuentes:**")
+        use_alpha = st.checkbox("Alpha Vantage", value=False)
+        use_newsapi = st.checkbox("NewsAPI", value=False)
+
+        finance_enabled = use_alpha or use_newsapi
+
+
+
+    # --- Scientific Knowledge Base (RAG) ---
+    with st.sidebar.expander("🔬 Base de Datos Científica"):
         rag_enabled = st.checkbox(
-            "Activar contexto científico (arXiv)",
-            value=True,
-            help="Incluye contexto científico recuperado de papers en arXiv"
+            "Activar Base de Datos Científica (RAG)", value=True
         )
         topic_arxiv = st.text_input("Tema de investigación", value="LLM Safety")
-        num_papers = st.slider("Cantidad de papers (Máx 3 para evitar errores)", 1, 3, 1)
-        
+        num_papers = st.slider("Cantidad de papers (Máx 3)", 1, 3, 1)
+
         if st.button("Actualizar Conocimiento"):
             with st.spinner("Descargando y procesando..."):
-                rag = get_rag_engine()
-                status = rag.ingest_papers(topic_arxiv, max_results=num_papers)
+                rag.ingest_papers(topic_arxiv, max_results=num_papers)
                 st.cache_data.clear()
-                st.success(status)
-                st.rerun()
-    
-    with st.sidebar.expander("🔬 Base de Datos Científica"):
-        topic_arxiv = st.text_input("Tema de investigación", value="LLM Safety")
-        num_papers = st.slider("Cantidad de papers (Máx 3 para evitar errores)", 1, 3, 1)
-        
-        if st.button("Actualizar Conocimiento"):
-            with st.spinner("Descargando y procesando..."):
-                status = rag.ingest_papers(topic_arxiv, max_results=num_papers)
-                st.cache_data.clear()
-                st.success(status)
-                st.rerun()
-            
+                st.success("Conocimiento actualizado")
+
+    # --- Available Documents ---
     with st.sidebar.expander("📄 Documentos disponibles"):
-        indexed_papers = get_cached_papers(rag)
-        
-        if indexed_papers:
-            st.write(f"Hay **{len(indexed_papers)}** documentos indexados:")
-            for i, doc in enumerate(indexed_papers, start=1):
+        docs = get_cached_papers(rag)
+
+        if docs:
+            st.write(f"Hay **{len(docs)}** documentos indexados:")
+            for i, doc in enumerate(docs, start=1):
                 st.markdown(f"{i}. {doc}")
-                
+
             if st.button("Limpiar Base de Datos"):
                 rag.reset_database()
                 st.cache_data.clear()
@@ -161,7 +115,8 @@ def render_sidebar():
                 st.rerun()
         else:
             st.warning("No hay documentos indexados.")
-            
+
+    # --- Generation parameters ---
     with st.sidebar.expander("⚙️ Parametros de generación"):
         language_map = {
             "Español": "Spanish",
@@ -170,56 +125,42 @@ def render_sidebar():
             "Italiano": "Italian",
             "Japonés": "Japanese",
         }
-        
+
         llm_options = [
             "Gemini (Nube, Prioritario)",
             "Groq (Nube, Rápido)",
             "Ollama (Local, Requiere setup)",
         ]
-        
-        st.header("💼 Información de la Empresa/Persona")
-        brand_bio = st.text_area(
-            "Datos de la empresa/persona:",
-            placeholder="Ej: Somos una agencia de marketing especializada en IA...",
-            help="Esta información se usará para personalizar el tono y el contenido.",
-        )
-        
-        st.header("🧠 Motor de generación (LLM)")
-        llm_selection_display = st.selectbox(
-            "Seleccionar Proveedor",
-            options=llm_options,
-            index=1,
-            help="Gemini: Versátil; Groq: Ultra-rápido; Ollama: Requiere servidor local.",
-        )
-        llm_selection = llm_selection_display.split("(")[0].strip()
 
-        if llm_selection == "Ollama":
-            st.warning(
-                "⚠️ **ADVERTENCIA:** Ollama requiere un servidor local en el puerto "
-                "11434 con el modelo necesario descargado."
-            )
-            
-        st.header("🌐 Idiomas")
+        brand_bio = st.text_area("Datos de la empresa/persona:")
+
+        llm_display = st.selectbox("Seleccionar Proveedor", llm_options)
+        llm_selection = llm_display.split("(")[0].strip()
+
         selected_language = st.selectbox(
             "Idioma a usar para la generación",
-            options=list(language_map.keys()),
-            index=0,
-            help="Idioma en el que se generará el contenido base y sus adaptaciones.",
+            list(language_map.keys()),
         )
         target_language = language_map[selected_language]
-            
+
+    # --- Main Inputs ---
+    
     with st.sidebar:
-        topic = st.text_input(
-            "Tema del Contenido:", "Agujeros negros"
-        )
-        audience = st.text_input(
-            "Audiencia Objetivo:", "Todo el público"
-        )
+        topic = st.text_input("Tema del Contenido:", "Agujeros negros")
+        audience = st.text_input("Audiencia Objetivo:", "Todo el público")
 
         generate_twitter = st.checkbox("Adaptar a Twitter/X", value=False)
         generate_instagram = st.checkbox("Adaptar a Instagram", value=False)
         generate_linkedin = st.checkbox("Adaptar a LinkedIn", value=False)
-        generate_image = st.checkbox("Generar imagen de portada", value=False)
+        generate_image = st.checkbox("Generar imágenes", value=False)
+
+        image_editorial = False
+        image_creative = False
+
+        if generate_image:
+            image_editorial = st.checkbox("Imagen profesional (editorial)", value=True)
+            image_creative = st.checkbox("Imagen creativa (marketing)", value=True)
+
 
         image_provider = None
         if generate_image:
@@ -229,21 +170,11 @@ def render_sidebar():
                     "Unsplash (Stock Photos)",
                     "Pexels (Stock Photos)",
                     "Hugging Face (SDXL)",
-                    "Replicate (Flux)"
+                    "Replicate (Flux)",
                 ],
-                help="Unsplash y Pexels buscan fotos reales de alta calidad. HuggingFace y Replicate generan imágenes con IA."
             )
-        else:
-            st.info("💡 Solo se generará el contenido de texto.")
-        
-        # Debug mode for developers
-        with st.expander("🔧 Developer Options"):
-            debug_mode = st.checkbox(
-                "Enable debug mode",
-                value=False,
-                help="Show grounding context details in logs and UI"
-            )
-        
+
+        debug_mode = st.checkbox("🔧 Developer mode")
         generate_button = st.button("Generar Todo el Contenido", type="primary")
 
     return (
@@ -252,18 +183,29 @@ def render_sidebar():
         target_language,
         topic,
         audience,
+        rag_enabled,
+        topic_arxiv,
+        num_papers,
         finance_enabled,
         finance_query,
         finance_max_articles,
+        use_alpha,
+        use_newsapi,
         generate_twitter,
         generate_instagram,
         generate_linkedin,
         generate_image,
+        image_editorial,
+        image_creative,
         image_provider,
         debug_mode,
         generate_button,
     )
 
+
+# -----------------------
+# Core pipeline
+# -----------------------
 
 def generate_content(
     brand_bio,
@@ -271,246 +213,444 @@ def generate_content(
     target_language,
     topic,
     audience,
+    rag_enabled,
+    topic_arxiv,
+    num_papers,
     finance_enabled,
     finance_query,
     finance_max_articles,
+    use_alpha,
+    use_newsapi,
     generate_twitter,
     generate_instagram,
     generate_linkedin,
     generate_image,
+    image_editorial,
+    image_creative,
     image_provider,
-    debug_mode=False,
+    debug_mode,
 ):
-    """
-    Generates and displays content based on the user's selections.
+    """Main orchestration logic."""
 
-    This function orchestrates the content generation process. It initializes the
-    required language model chains, generates a base blog article, and then creates
-    adaptations for social media platforms and a cover image if requested.
+    blog_chain = create_blog_chain(llm_selection)
+    science_chain = generate_science_post_chain(llm_selection)
+    
+    # -----------------------
+    # Validaciones de entrada (UX y coherencia)
+    # -----------------------
 
-    Args:
-        brand_bio (str): The brand biography provided by the user.
-        llm_selection (str): The selected language model (e.g., "Gemini", "Groq").
-        target_language (str): The target language for the content.
-        topic (str): The main topic for the content generation.
-        audience (str): The target audience for the content.
-        finance_enabled (bool): If True, includes financial news context.
-        finance_query (str or None): Query for financial news API.
-        finance_max_articles (int): Maximum number of financial articles to fetch.
-        generate_twitter (bool): If True, generates content for Twitter/X.
-        generate_instagram (bool): If True, generates content for Instagram.
-        generate_linkedin (bool): If True, generates content for LinkedIn.
-        generate_image (bool): If True, generates a cover image.
-        image_provider (str or None): The provider for the image generation service.
-        debug_mode (bool): If True, shows debug information about grounding context.
-    """
-    if not topic or not audience:
-        st.warning("Por favor, introduce el Tema y la Audiencia.")
+    # 1. Siempre exigir tema
+    if not topic.strip():
+        st.error("Debes indicar un tema para generar contenido.")
         return
 
-    try:
-        st.info(f"Inicializando motor de contenido con: **{llm_selection}**...")
-        blog_chain = create_blog_chain(llm_selection)
-        image_prompt_chain = create_image_prompt_chain(llm_selection)
-        twitter_adaptor_chain = create_twitter_adaptor_chain(llm_selection)
-        instagram_adaptor_chain = create_instagram_adaptor_chain(llm_selection)
-        linkedin_adaptor_chain = create_linkedin_adaptor_chain(llm_selection)
-        science_post_chain = generate_science_post_chain(llm_selection)
-        
-    except Exception as e:
-        st.error(f"No se pudo inicializar un componente. Error: {e}")
-        st.stop()
+    # 2. Finanzas activadas pero sin query → se desactiva suavemente
+    if finance_enabled and not finance_query.strip():
+        st.warning("Modo financiero activado pero sin tema financiero. Se ignorará el contexto financiero.")
+        finance_enabled = False
 
-    brand_bio = brand_bio.strip() if brand_bio.strip() else "No proporcionado."
+    # 3. RAG activado pero sin documentos indexados
+    if rag_enabled:
+        rag = get_rag_engine()
+        if not rag.list_indexed_papers():
+            st.warning("RAG activado pero no hay documentos indexados. Pulsa 'Actualizar Conocimiento'.")
+
+
+    # Financial context
+    financial_context, financial_articles = "", []
     
-    # Prepare financial context if enabled (now returns tuple)
-    from src.core.content_chains import _prepare_financial_context
-    financial_context, financial_articles = _prepare_financial_context(
-        use_finance=finance_enabled,
-        finance_query=finance_query,
-        finance_max_articles=finance_max_articles
-    )
+    if finance_enabled and finance_query:
 
-    # Recuperar contexto científico solo si está activado
-    documents = ""
-    if 'rag_enabled' in locals() and rag_enabled:
-        rag = ScienceRAG()
-        documents = rag.get_context(topic)
-
-    with st.spinner("Generando Artículo de Blog..."):
-        # Resumen de grounding para transparencia en la UI
-        grounding_summary = get_grounding_summary(
-            rag_documents=documents,
-            financial_articles=financial_articles
-        )
-        # Ensamblar contexto combinado con logging si debug
-        combined_context = assemble_grounding_context(
-            rag_context=documents,
-            financial_context=financial_context,
-            debug=debug_mode
-        )
-
-        # TRANSPARENCIA UI: Mostrar fuentes utilizadas
-        if grounding_summary["is_grounded"]:
-            st.success(f"📡 **Contenido fundamentado en fuentes externas:** {', '.join(grounding_summary['sources_used'])}")
-            # Mostrar artículos financieros recuperados
-            if grounding_summary["financial_enabled"]:
-                st.markdown(f"#### 📈 Noticias Financieras ({grounding_summary['financial_article_count']} artículos)")
-                for article in grounding_summary["financial_articles"]:
-                    st.markdown(f"- **{article['title']}**  
-                        <span style='color:gray;font-size:small'>Fuente: {article['source']}</span>", unsafe_allow_html=True)
-                if not grounding_summary["financial_articles"]:
-                    st.warning("No se recuperaron noticias financieras.")
-            # Mostrar papers científicos recuperados
-            if grounding_summary["rag_enabled"]:
-                st.markdown(f"#### 🔬 Contexto Científico (arXiv): {grounding_summary['rag_doc_count']} fragmentos de papers")
-                if not documents:
-                    st.warning("No se recuperó contexto científico de arXiv.")
-            # Debug: mostrar contexto ensamblado
-            if debug_mode:
-                st.markdown("---")
-                st.markdown("**🔧 Debug: Contexto ensamblado (primeros 1000 chars)**")
-                st.code(combined_context[:1000] if combined_context else "[Contexto vacío]", language="text")
-        else:
-            st.info("🧠 Generando con LLM puro (sin fuentes externas)")
-
-        # Selección de cadena según disponibilidad de contexto científico
-        if not documents:
-            inputs = {
-                "topic": topic,
-                "audience": audience,
-                "target_language": target_language,
-                "brand_bio": brand_bio,
-                "financial_context": financial_context
-            }
-            blog_content = blog_chain.invoke(inputs)
-            st.markdown("### 📝 Artículo de Blog")
-            st.markdown(blog_content)
-        else:
-            blog_content = science_post_chain.invoke(
-                {
-                    "documents": documents, 
-                    "topic": topic, 
-                    "target_language": target_language,
-                    "brand_bio": brand_bio,
-                    "financial_context": financial_context
-                }
+        if use_alpha and not use_newsapi:
+            financial_articles = load_financial_news(
+                query=finance_query,
+                max_articles=finance_max_articles
             )
-            st.markdown("### 📝 Artículo de Blog Científico")
-            st.markdown(blog_content)
 
+        elif use_newsapi and not use_alpha:
+            financial_articles = load_financial_news_newsapi(
+                query=finance_query,
+                max_articles=finance_max_articles
+            )
+
+        else:
+            # Both active → multi-source
+            financial_articles = load_financial_news_multi(
+                query=finance_query,
+                max_articles=finance_max_articles
+            )
+
+    financial_context = build_finance_context(financial_articles)
+    
+    
+    # RAG context
+    documents = ""
+    rag_sources = []
+    rag_coverage = 0
+    
+    if rag_enabled:
+        rag = get_rag_engine()     # SAME cached instance
+        
+        if rag.list_indexed_papers():
+            rag_result = rag.get_context(topic, k_chunks=num_papers * 2)
+
+            documents = rag_result["context"]
+            rag_sources = rag_result["sources"]
+            rag_coverage = rag_result["coverage"]
+            
+            # Heurística básica de relevancia
+            if topic.lower() not in documents.lower():
+                st.warning("El conocimiento científico recuperado no parece relevante para el tema. Se usará generación estándar.")
+                documents = ""
+                rag_sources = []
+                rag_coverage = 0
+            
+            if debug_mode:
+                st.write("DEBUG - Documentos recuperados:", documents[:500])
+                
+    # Only warn when financial context is being used as secondary (not main topic)
+    # Finance is background if RAG dominates and topics differ
+    if finance_enabled and financial_articles and rag_enabled and documents:
+        if topic.lower() not in finance_query.lower():
+            financial_context = (
+                "NOTE: Financial articles provided are background context only. "
+                "Prioritize topic relevance.\n\n" + financial_context
+            )
+
+            st.info(
+                "ℹ️ Las noticias financieras se han usado solo como contexto general "
+                "(no están directamente relacionadas con el tema principal)."
+            )
+            
+    # Stop generation if only financial mode is active and no articles were retrieved
+    if finance_enabled and not rag_enabled and not financial_articles:
+        st.error(
+            "No se han podido recuperar noticias financieras para esa búsqueda. "
+            "Prueba con otro término (ej: inflation, Tesla, ECB, markets)."
+        )
+        return
+    
+    combined_context = assemble_grounding_context(
+        rag_context=documents if rag_enabled else "",
+        financial_context=financial_context if finance_enabled else "",
+        debug=debug_mode,
+    )
+    
+    
+    # -----------------------
+    # Transparency layer (user + developer feedback)
+    # -----------------------
+
+    active_modes = []
+
+    if rag_enabled:
+        active_modes.append("🔬 Científico (RAG)")
+
+    if finance_enabled:
+        active_modes.append("📈 Financiero")
+
+    if not active_modes:
+        active_modes.append("🧠 LLM puro")
+
+    st.info(f"Modo activo: {' + '.join(active_modes)}")
+    
+    
+    # Warnings informativos
+    if rag_enabled and not documents:
+        st.warning("RAG activado pero sin contexto relevante. Se utilizó generación LLM estándar.")
+
+    if finance_enabled and finance_query and not financial_articles:
+        st.warning("Noticias financieras activadas pero no se recuperaron artículos.")
+        
+    
+    
+    # Matrix logic respected
+    if rag_enabled:
+        blog_content = science_chain.invoke({
+            "documents": documents,
+            "topic": topic,
+            "target_language": target_language,
+            "brand_bio": brand_bio,
+            "financial_context": financial_context,
+        })
+    else:
+        blog_content = blog_chain.invoke({
+            "topic": topic,
+            "audience": audience,
+            "target_language": target_language,
+            "brand_bio": brand_bio,
+            "financial_context": financial_context,
+        })
+
+    st.markdown("### 📝 Artículo de Blog")
+    st.markdown(blog_content)
+    
+    # -----------------------
+    # PDF Generation
+    # -----------------------
+    
     st.divider()
 
+if st.button("📄 Exportar a PDF"):
+    pdf = generate_pdf(
+        blog_content=blog_content,
+        twitter=twitter_post if generate_twitter else None,
+        instagram=instagram_post if generate_instagram else None,
+        linkedin=linkedin_post if generate_linkedin else None,
+        rag_sources=rag_sources if rag_enabled else None,
+        financial_articles=financial_articles if finance_enabled else None
+    )
+
+    st.download_button(
+        label="Descargar PDF",
+        data=pdf,
+        file_name="nemotecas_ai_content.pdf",
+        mime="application/pdf"
+    )
+
+    
+    
+    # -----------------------
+    # Social Media Adaptations
+    # -----------------------
+
     if generate_twitter:
-        st.markdown("### 🐦 Adaptación para Twitter/X")
-        with st.spinner("Adaptando contenido a formato Twitter/X..."):
-            twitter_inputs = {
+        twitter_chain = create_twitter_adaptor_chain(llm_selection)
+        with st.spinner("Generando hilo para Twitter/X..."):
+            twitter_post = twitter_chain.invoke({
                 "blog_content": blog_content,
-                "target_language": target_language,
                 "brand_bio": brand_bio,
-            }
-            twitter_content = twitter_adaptor_chain.invoke(twitter_inputs)
-            st.markdown(twitter_content)
-        st.divider()
+                "target_language": target_language,
+            })
+
+        st.markdown("### 🐦 Twitter/X")
+        st.markdown(twitter_post)
+
 
     if generate_instagram:
-        st.markdown("### 📸 Adaptación para Instagram")
-        with st.spinner("Adaptando contenido a Instagram (Caption)..."):
-            insta_inputs = {
+        instagram_chain = create_instagram_adaptor_chain(llm_selection)
+        with st.spinner("Generando caption para Instagram..."):
+            instagram_post = instagram_chain.invoke({
                 "blog_content": blog_content,
-                "target_language": target_language,
                 "brand_bio": brand_bio,
-            }
-            instagram_content = instagram_adaptor_chain.invoke(insta_inputs)
-            st.markdown(instagram_content)
-        st.divider()
+                "target_language": target_language,
+            })
+
+        st.markdown("### 📸 Instagram")
+        st.markdown(instagram_post)
+
 
     if generate_linkedin:
-        st.markdown("### 💼 Adaptación para LinkedIn")
-        with st.spinner("Adaptando contenido a LinkedIn..."):
-            linkedin_inputs = {
+        linkedin_chain = create_linkedin_adaptor_chain(llm_selection)
+        with st.spinner("Generando post para LinkedIn..."):
+            linkedin_post = linkedin_chain.invoke({
                 "blog_content": blog_content,
-                "target_language": target_language,
                 "brand_bio": brand_bio,
-            }
-            linkedin_content = linkedin_adaptor_chain.invoke(linkedin_inputs)
-            st.markdown(linkedin_content)
-        st.divider()
+                "target_language": target_language,
+            })
 
-    if generate_image and image_provider:
-        with st.spinner(f"Renderizando imagen con {image_provider}..."):
-            # Determine which provider to use
-            image_result = None
-            
-            # For stock photo APIs, use the topic directly instead of generating an AI prompt
-            if "Unsplash" in image_provider or "Pexels" in image_provider:
-                # Use the topic for keyword-based search
-                search_query = topic
-                if "Unsplash" in image_provider:
-                    image_result = search_image_from_unsplash(search_query)
-                else:  # Pexels
-                    image_result = search_image_from_pexels(search_query)
+        st.markdown("### 💼 LinkedIn")
+        st.markdown(linkedin_post)
+
+    # -----------------------
+    # Image generation
+    # -----------------------
+
+    if generate_image:
+        image_prompt_chain = create_image_prompt_chain(llm_selection)
+
+        with st.spinner("Generando prompts de imagen..."):
+            img_output = image_prompt_chain.invoke({
+                "blog_content": blog_content
+            })
+
+        if debug_mode:
+            st.text("DEBUG - Image prompts raw output:")
+            st.text(img_output)
+
+        # Parse prompts
+        editorial_prompt = ""
+        creative_prompt = ""
+
+        try:
+            parts = img_output.split("[CREATIVE PROMPT]")
+            editorial_prompt = parts[0].split("[EDITORIAL PROMPT]")[1].strip()
+            creative_prompt = parts[1].strip()
+        except Exception:
+            st.error("No se pudieron separar correctamente los prompts de imagen.")
+            return
+
+        # Generate selected images
+        if image_provider:
+
+            if image_editorial:
+                st.markdown("### 🖼️ Imagen profesional")
+                with st.spinner(f"Generando imagen editorial con {image_provider}..."):
+                    if "Replicate" in image_provider:
+                        img = generate_image_from_replicate(editorial_prompt)
+                    else:
+                        img = generate_image_from_huggingface(editorial_prompt)
+
+                    if img:
+                        st.image(img, use_container_width=True)
+
+            if image_creative:
+                st.markdown("### 🎨 Imagen creativa")
+                with st.spinner(f"Generando imagen creativa con {image_provider}..."):
+                    if "Replicate" in image_provider:
+                        img = generate_image_from_replicate(creative_prompt)
+                    else:
+                        img = generate_image_from_huggingface(creative_prompt)
+
+                    if img:
+                        st.image(img, use_container_width=True)
+
+
+
+    # -----------------------
+    # Academic financial evidence layer (UI)
+    # -----------------------
+
+    if finance_enabled and financial_articles:
+        st.markdown("### 📈 Artículos financieros utilizados")
+
+        for art in financial_articles:
+            provider = art.get("provider", "unknown")
+            st.markdown(
+                f"- **{art['title']}**  \n"
+                f"  📰 {art['source']}  \n"
+                f"  🌐 Fuente: `{provider}`  \n"
+                f"  🔗 {art['url']}"
+            )
+    
+    
+    # -----------------------
+    # Academic evidence layer (RAG)
+    # -----------------------
+    
+    if rag_enabled and rag_sources:
+        st.markdown("### 📄 Papers utilizados")
+
+        for src in rag_sources:
+            if src["url"]:
+                st.markdown(
+                    f"- **{src['title']}**  \n"
+                    f"  🔗 {src['url']}  \n"
+                    f"  Fragmentos usados: {src['chunks']}"
+                )
             else:
-                # For AI image generation, use the detailed prompt from LLM
-                img_prompt = image_prompt_chain.invoke({"blog_content": blog_content})
-                if "Replicate" in image_provider:
-                    path = generate_image_from_replicate(img_prompt)
-                    if path:
-                        image_result = path
-                else:  # HuggingFace
-                    image_result = generate_image_from_huggingface(img_prompt)
+                st.markdown(f"- **{src['title']}** (sin enlace disponible)")
 
-            if image_result:
-                st.image(image_result, caption=f"Imagen obtenida vía {image_provider}", use_container_width=True)
-            else:
-                st.error(f"No se pudo obtener la imagen desde {image_provider}")
+    if rag_enabled:
+        st.markdown(f"🔍 **Cobertura científica (RAG):** {rag_coverage}%")
+    elif finance_enabled:
+        st.markdown("🔍 **Cobertura científica (RAG):** N/A (modo financiero)")
 
+
+def generate_pdf(
+    blog_content,
+    logo_path="assets/logo.png",
+    twitter=None,
+    instagram=None,
+    linkedin=None,
+    rag_sources=None,
+    financial_articles=None
+):
+    buffer = io.BytesIO()
+
+    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    styles = getSampleStyleSheet()
+
+    # Custom styles
+    title_style = ParagraphStyle(
+        name="Title",
+        fontSize=20,
+        spaceAfter=20,
+        alignment=TA_CENTER
+    )
+
+    normal = styles["BodyText"]
+
+    footer_style = ParagraphStyle(
+        name="Footer",
+        fontSize=9,
+        textColor="grey",
+        alignment=TA_CENTER
+    )
+
+    elements = []
+
+    # Logo
+    try:
+        elements.append(Image(logo_path, width=200, height=80))
+        elements.append(Spacer(1, 20))
+    except:
+        pass  # si no encuentra logo no rompe
+
+    # Title (extract first markdown header or use default)
+    elements.append(Paragraph("Generated Content – Nemotecas AI", title_style))
+    elements.append(Spacer(1, 10))
+
+    # Blog
+    elements.append(Paragraph("<b>Blog Article</b>", styles["Heading2"]))
+    for paragraph in blog_content.split("\n\n"):
+        elements.append(Paragraph(paragraph.replace("\n", "<br/>"), normal))
+        elements.append(Spacer(1, 8))
+
+    # RRSS
+    if twitter:
+        elements.append(Spacer(1, 10))
+        elements.append(Paragraph("<b>Twitter/X</b>", styles["Heading2"]))
+        elements.append(Paragraph(twitter.replace("\n", "<br/>"), normal))
+
+    if instagram:
+        elements.append(Spacer(1, 10))
+        elements.append(Paragraph("<b>Instagram</b>", styles["Heading2"]))
+        elements.append(Paragraph(instagram.replace("\n", "<br/>"), normal))
+
+    if linkedin:
+        elements.append(Spacer(1, 10))
+        elements.append(Paragraph("<b>LinkedIn</b>", styles["Heading2"]))
+        elements.append(Paragraph(linkedin.replace("\n", "<br/>"), normal))
+
+    # RAG sources
+    if rag_sources:
+        elements.append(Spacer(1, 10))
+        elements.append(Paragraph("<b>Scientific Sources (RAG)</b>", styles["Heading2"]))
+        for src in rag_sources:
+            line = f"{src['title']} - {src.get('url', '')}"
+            elements.append(Paragraph(line, normal))
+
+    # Financial sources
+    if financial_articles:
+        elements.append(Spacer(1, 10))
+        elements.append(Paragraph("<b>Financial Sources</b>", styles["Heading2"]))
+        for art in financial_articles:
+            line = f"{art['title']} - {art['url']}"
+            elements.append(Paragraph(line, normal))
+
+    # Footer disclaimer
+    elements.append(Spacer(1, 30))
+    elements.append(Paragraph(
+        "Nemotecas AI can make mistakes. Check important info.",
+        footer_style
+    ))
+
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer
+
+
+# -----------------------
+# Main
+# -----------------------
 
 def main():
-    """
-    Main function to run the Streamlit application.
-
-    This function sets up the main UI, renders the sidebar to get user inputs,
-    and triggers the content generation process when the user clicks the button.
-    """
     st.subheader("Contenido Generado (PoC)")
+    values = render_sidebar()
 
-    (
-        brand_bio,
-        llm_selection,
-        target_language,
-        topic,
-        audience,
-        finance_enabled,
-        finance_query,
-        finance_max_articles,
-        generate_twitter,
-        generate_instagram,
-        generate_linkedin,
-        generate_image,
-        image_provider,
-        debug_mode,
-        generate_button,
-    ) = render_sidebar()
-
-    if generate_button:
-        generate_content(
-            brand_bio,
-            llm_selection,
-            target_language,
-            topic,
-            audience,
-            finance_enabled,
-            finance_query,
-            finance_max_articles,
-            generate_twitter,
-            generate_instagram,
-            generate_linkedin,
-            generate_image,
-            image_provider,
-            debug_mode,
-        )
-
+    if values[-1]:
+        generate_content(*values[:-1])
 
 
 if __name__ == "__main__":
