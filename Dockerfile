@@ -18,6 +18,7 @@ COPY config/settings.py /app/config/settings.py
 RUN apt-get update && apt-get install -y \
     git \
     build-essential \
+    libsqlite3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
